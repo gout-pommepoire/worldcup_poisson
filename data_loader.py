@@ -74,12 +74,19 @@ def load_all(csv_path: str = RESULTS_CSV) -> pd.DataFrame:
     df["home_goals"] = df["home_score"].astype(float).astype(int)
     df["away_goals"] = df["away_score"].astype(float).astype(int)
 
-    is_wc     = df["tournament"] == "FIFA World Cup"
-    is_recent = df["date"] >= RECENT_CUTOFF
+    is_wc       = df["tournament"] == "FIFA World Cup"
+    is_recent   = df["date"] >= RECENT_CUTOFF
     is_friendly = df["tournament"].isin(FRIENDLY_TOURNAMENTS)
+    is_conifa   = df["tournament"].str.contains("CONIFA", na=False)
 
-    mask = (is_wc) | (is_recent & ~is_friendly)
+    mask = (is_wc | (is_recent & ~is_friendly)) & ~is_conifa
     df = df[mask].copy()
+
+    # Retirer les équipes avec trop peu de matchs (estimations non fiables)
+    MIN_MATCHES = 5
+    counts = pd.concat([df["home_team"], df["away_team"]]).value_counts()
+    valid_teams = counts[counts >= MIN_MATCHES].index
+    df = df[df["home_team"].isin(valid_teams) & df["away_team"].isin(valid_teams)].copy()
 
     df["home_team"] = df["home_team"].map(normalize_team)
     df["away_team"] = df["away_team"].map(normalize_team)

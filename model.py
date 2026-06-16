@@ -117,8 +117,8 @@ class DixonColesModel:
         x0[-1] = 0.3    # alpha
 
         bounds = (
-            [(0.1, 5.0)] * (n-1) +   # att libres
-            [(0.1, 5.0)] * n +        # def
+            [(0.05, 15.0)] * (n-1) +   # att libres
+            [(0.02, 15.0)] * n +        # def
             [(1.0, 2.0), (-0.99, 0.99), (0.01, 5.0)]
         )
 
