@@ -10,19 +10,37 @@ Deux niveaux de jugement :
                           étaient-ils proches des buts réels marqués ?
 """
 
+import os
 import numpy as np
 import pandas as pd
 
 from model import DixonColesModel
+from data_loader import normalize_team
 
 
 XG_CLOSE_THRESHOLD = 1.5   # somme des erreurs absolues (home+away) jugée "proche"
+XG_REEL_CSV = "xg_reel.csv"
 
 
 def get_played_2026_matches(df: pd.DataFrame) -> pd.DataFrame:
     return df[
         (df["date"].dt.year == 2026) & (df["stage"] == "FIFA World Cup")
     ].reset_index(drop=True)
+
+
+def load_xg_reel(path: str = XG_REEL_CSV) -> pd.DataFrame:
+    """Charge les xG réels relevés manuellement (date, équipes, xG dom/ext)."""
+    if not os.path.exists(path):
+        return pd.DataFrame(columns=["date", "home_team", "away_team", "xg_home_reel", "xg_away_reel"])
+
+    xg = pd.read_csv(path)
+    if xg.empty:
+        return xg
+
+    xg["date"] = pd.to_datetime(xg["date"])
+    xg["home_team"] = xg["home_team"].map(normalize_team)
+    xg["away_team"] = xg["away_team"].map(normalize_team)
+    return xg
 
 
 def outcome_label(home_goals: int, away_goals: int) -> str:
@@ -42,13 +60,13 @@ def predicted_outcome(result: dict) -> str:
     return max(probs, key=probs.get)
 
 
-def verdict(result_correct: bool, score_exact: bool, xg_close: bool) -> str:
+def verdict(result_correct: bool, score_exact: bool, xg_close: bool, has_real_xg: bool) -> str:
     if score_exact:
         return "✅ Score exact"
     if result_correct:
         return "🟢 Bon résultat"
     if xg_close:
-        return "🟡 Résultat raté, xG cohérent"
+        return "🟡 Résultat raté, xG réel cohérent" if has_real_xg else "🟡 Résultat raté, xG (proxy) cohérent"
     return "🔴 Raté"
 
 
@@ -58,11 +76,21 @@ def run_backtest(df_all: pd.DataFrame) -> pd.DataFrame:
              pour le ré-entraînement leave-one-out.
     """
     played = get_played_2026_matches(df_all)
+    xg_reel = load_xg_reel()
     rows = []
 
     for i, match in played.iterrows():
         home, away = match["home_team"], match["away_team"]
         actual_h, actual_a = int(match["home_goals"]), int(match["away_goals"])
+
+        xg_match = xg_reel[
+            (xg_reel["date"] == match["date"]) &
+            (xg_reel["home_team"] == home) &
+            (xg_reel["away_team"] == away)
+        ] if not xg_reel.empty else pd.DataFrame()
+        has_real_xg = not xg_match.empty
+        real_xg_h = float(xg_match.iloc[0]["xg_home_reel"]) if has_real_xg else None
+        real_xg_a = float(xg_match.iloc[0]["xg_away_reel"]) if has_real_xg else None
 
         # Leave-one-out : on retire CE match précis du pool d'entraînement
         train_df = df_all.drop(
@@ -90,7 +118,11 @@ def run_backtest(df_all: pd.DataFrame) -> pd.DataFrame:
         actual_score = f"{actual_h}-{actual_a}"
         score_exact = (pred_score == actual_score)
 
-        xg_error = abs(lam - actual_h) + abs(mu - actual_a)
+        # Comparaison contre le xG réel si disponible, sinon contre le score final (proxy)
+        if has_real_xg:
+            xg_error = abs(lam - real_xg_h) + abs(mu - real_xg_a)
+        else:
+            xg_error = abs(lam - actual_h) + abs(mu - actual_a)
         xg_close = xg_error <= XG_CLOSE_THRESHOLD
 
         rows.append({
@@ -99,8 +131,11 @@ def run_backtest(df_all: pd.DataFrame) -> pd.DataFrame:
             "away_team": away,
             "score_reel": actual_score,
             "score_predit": pred_score,
-            "xG_domicile": round(lam, 2),
-            "xG_exterieur": round(mu, 2),
+            "xG_predit_dom": round(lam, 2),
+            "xG_predit_ext": round(mu, 2),
+            "xG_reel_dom": round(real_xg_h, 2) if has_real_xg else None,
+            "xG_reel_ext": round(real_xg_a, 2) if has_real_xg else None,
+            "has_real_xg": has_real_xg,
             "buts_reels_dom": actual_h,
             "buts_reels_ext": actual_a,
             "erreur_xG": round(xg_error, 2),
@@ -112,7 +147,7 @@ def run_backtest(df_all: pd.DataFrame) -> pd.DataFrame:
             "resultat_correct": result_correct,
             "score_exact": score_exact,
             "xG_coherent": xg_close,
-            "verdict": verdict(result_correct, score_exact, xg_close),
+            "verdict": verdict(result_correct, score_exact, xg_close, has_real_xg),
         })
 
     return pd.DataFrame(rows)

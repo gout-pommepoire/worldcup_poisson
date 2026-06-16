@@ -278,11 +278,12 @@ with tab_bilan:
     )
 
     @st.cache_resource(show_spinner="Ré-entraînement leave-one-out sur les matchs joués (~30s/match)…")
-    def get_backtest(_df):
+    def get_backtest(_df, xg_reel_mtime):
         bt = run_backtest(_df)
         return bt
 
-    backtest_df = get_backtest(df)
+    xg_reel_mtime = os.path.getmtime("xg_reel.csv") if os.path.exists("xg_reel.csv") else 0
+    backtest_df = get_backtest(df, xg_reel_mtime)
 
     if backtest_df.empty:
         st.info("Aucun match CdM 2026 joué pour l'instant.")
@@ -290,28 +291,39 @@ with tab_bilan:
         stats = summary_stats(backtest_df)
 
         c1, c2, c3, c4 = st.columns(4)
+        n_with_real_xg = int(backtest_df["has_real_xg"].sum())
         c1.metric("Matchs analysés", stats["n_matches"])
         c2.metric("Score exact", f"{stats['pct_score_exact']:.0%}")
         c3.metric("Bon résultat (1N2)", f"{stats['pct_resultat_correct']:.0%}")
-        c4.metric("xG cohérent", f"{stats['pct_xg_coherent']:.0%}")
+        c4.metric("xG cohérent", f"{stats['pct_xg_coherent']:.0%}",
+                   help=f"{n_with_real_xg}/{stats['n_matches']} matchs avec un vrai xG relevé manuellement")
 
         st.markdown("---")
 
-        display_df = backtest_df[[
+        display_df = backtest_df.copy()
+        display_df["xG dom."] = display_df.apply(
+            lambda r: f"{r['xG_reel_dom']:.2f} (réel)" if r["has_real_xg"] else f"{r['xG_predit_dom']:.2f} (modèle)",
+            axis=1,
+        )
+        display_df["xG ext."] = display_df.apply(
+            lambda r: f"{r['xG_reel_ext']:.2f} (réel)" if r["has_real_xg"] else f"{r['xG_predit_ext']:.2f} (modèle)",
+            axis=1,
+        )
+
+        display_df = display_df[[
             "date", "home_team", "away_team", "score_reel", "score_predit",
-            "xG_domicile", "xG_exterieur", "erreur_xG",
+            "xG dom.", "xG ext.", "erreur_xG",
             "resultat_predit", "resultat_reel", "verdict",
         ]].rename(columns={
             "date": "Date", "home_team": "Domicile", "away_team": "Extérieur",
             "score_reel": "Score réel", "score_predit": "Score prédit",
-            "xG_domicile": "xG dom.", "xG_exterieur": "xG ext.",
             "erreur_xG": "Erreur xG",
             "resultat_predit": "1N2 prédit", "resultat_reel": "1N2 réel",
             "verdict": "Verdict",
         })
 
         st.dataframe(
-            display_df.style.format({"xG dom.": "{:.2f}", "xG ext.": "{:.2f}", "Erreur xG": "{:.2f}"}),
+            display_df.style.format({"Erreur xG": "{:.2f}"}),
             hide_index=True,
             use_container_width=True,
             height=460,
@@ -319,9 +331,19 @@ with tab_bilan:
 
         st.caption(
             "🟢 Bon résultat : le modèle avait le bon vainqueur/nul, même si le score exact diffère · "
-            "🟡 Résultat raté, xG cohérent : mauvais 1N2 mais les buts attendus collaient à la performance réelle "
-            "(ex: domination sans concrétisation) · 🔴 Raté : ni le résultat ni les xG ne correspondaient."
+            "🟡 Résultat raté, xG cohérent : mauvais 1N2 mais le xG collait à la performance réelle "
+            "(ex: domination sans concrétisation) · 🔴 Raté : ni le résultat ni le xG ne correspondaient. "
+            "« (réel) » = xG relevé manuellement sur un match joué, « (modèle) » = estimation pré-match faute de relevé."
         )
+
+        st.markdown("---")
+        st.markdown("##### ✍️ Renseigner un xG réel")
+        st.caption(
+            f"Ajoute les xG relevés (Sofascore, Flashscore...) dans `{os.path.basename('xg_reel.csv')}` "
+            "puis recharge la page. Format : `date,home_team,away_team,xg_home_reel,xg_away_reel` "
+            "(noms d'équipes en anglais, ex: `Spain`, `USA`, `South Korea`)."
+        )
+        st.code("2026-06-15,Spain,Cape Verde,2.4,0.6", language="text")
 
 # ---------------------------------------------------------------------------
 # Footer
