@@ -129,7 +129,7 @@ class DixonColesModel:
             args=(hg, ag, hi, ai, w, n),
             method="L-BFGS-B",
             bounds=bounds,
-            options={"maxiter": 10000, "maxfun": 200000, "ftol": 1e-10, "gtol": 1e-6},
+            options={"maxiter": 3000, "maxfun": 60000, "ftol": 1e-9, "gtol": 1e-6},
         )
 
         if not result.success:

@@ -18,6 +18,7 @@ from itertools import product
 from data_loader import load_all
 from model import DixonColesModel
 from tournament import build_groups, run_monte_carlo
+from backtest import run_backtest, summary_stats
 
 # ---------------------------------------------------------------------------
 # Config page
@@ -71,7 +72,7 @@ top_n = st.sidebar.slider("Top N scores", 5, 15, 10)
 
 strengths = model.team_strengths()
 
-tab_match, tab_tournoi = st.tabs(["🎯 Match", "🏆 Tournoi"])
+tab_match, tab_tournoi, tab_bilan = st.tabs(["🎯 Match", "🏆 Tournoi", "📈 Bilan"])
 
 # =============================================================================
 # ONGLET MATCH
@@ -256,6 +257,70 @@ with tab_tournoi:
             hide_index=True,
             use_container_width=True,
             height=400,
+        )
+
+# =============================================================================
+# ONGLET BILAN — prédictions vs résultats réels
+# =============================================================================
+
+with tab_bilan:
+    st.markdown("#### 📈 Bilan des pronostics — matchs CdM 2026 déjà joués")
+    st.caption(
+        "Pour chaque match déjà joué, le modèle est ré-entraîné **sans ce match** "
+        "(leave-one-out) puis utilisé pour prédire — comparaison honnête, sans triche."
+    )
+    st.warning(
+        "⚠️ **\"xG\" ici = buts attendus *pré-match* du modèle**, pas un xG calculé sur les tirs/occasions "
+        "réels du match (pas de données de tirs disponibles). Un match dominé sans but marqué "
+        "(ex : beaucoup de tirs, 0 but) sera donc vu comme une erreur du modèle, alors qu'un vrai xG "
+        "post-match (basé sur les occasions créées) confirmerait souvent que le modèle avait juste sur le fond.",
+        icon="⚠️",
+    )
+
+    @st.cache_resource(show_spinner="Ré-entraînement leave-one-out sur les matchs joués (~30s/match)…")
+    def get_backtest(_df):
+        bt = run_backtest(_df)
+        return bt
+
+    backtest_df = get_backtest(df)
+
+    if backtest_df.empty:
+        st.info("Aucun match CdM 2026 joué pour l'instant.")
+    else:
+        stats = summary_stats(backtest_df)
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Matchs analysés", stats["n_matches"])
+        c2.metric("Score exact", f"{stats['pct_score_exact']:.0%}")
+        c3.metric("Bon résultat (1N2)", f"{stats['pct_resultat_correct']:.0%}")
+        c4.metric("xG cohérent", f"{stats['pct_xg_coherent']:.0%}")
+
+        st.markdown("---")
+
+        display_df = backtest_df[[
+            "date", "home_team", "away_team", "score_reel", "score_predit",
+            "xG_domicile", "xG_exterieur", "erreur_xG",
+            "resultat_predit", "resultat_reel", "verdict",
+        ]].rename(columns={
+            "date": "Date", "home_team": "Domicile", "away_team": "Extérieur",
+            "score_reel": "Score réel", "score_predit": "Score prédit",
+            "xG_domicile": "xG dom.", "xG_exterieur": "xG ext.",
+            "erreur_xG": "Erreur xG",
+            "resultat_predit": "1N2 prédit", "resultat_reel": "1N2 réel",
+            "verdict": "Verdict",
+        })
+
+        st.dataframe(
+            display_df.style.format({"xG dom.": "{:.2f}", "xG ext.": "{:.2f}", "Erreur xG": "{:.2f}"}),
+            hide_index=True,
+            use_container_width=True,
+            height=460,
+        )
+
+        st.caption(
+            "🟢 Bon résultat : le modèle avait le bon vainqueur/nul, même si le score exact diffère · "
+            "🟡 Résultat raté, xG cohérent : mauvais 1N2 mais les buts attendus collaient à la performance réelle "
+            "(ex: domination sans concrétisation) · 🔴 Raté : ni le résultat ni les xG ne correspondaient."
         )
 
 # ---------------------------------------------------------------------------
