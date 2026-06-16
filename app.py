@@ -302,11 +302,11 @@ with tab_bilan:
 
         display_df = backtest_df.copy()
         display_df["xG dom."] = display_df.apply(
-            lambda r: f"{r['xG_reel_dom']:.2f} (réel)" if r["has_real_xg"] else f"{r['xG_predit_dom']:.2f} (modèle)",
+            lambda r: f"{r['xG_reel_dom']:.2f} (Sofascore)" if r["has_real_xg"] else f"{r['xG_predit_dom']:.2f} (modèle)",
             axis=1,
         )
         display_df["xG ext."] = display_df.apply(
-            lambda r: f"{r['xG_reel_ext']:.2f} (réel)" if r["has_real_xg"] else f"{r['xG_predit_ext']:.2f} (modèle)",
+            lambda r: f"{r['xG_reel_ext']:.2f} (Sofascore)" if r["has_real_xg"] else f"{r['xG_predit_ext']:.2f} (modèle)",
             axis=1,
         )
 
@@ -333,14 +333,16 @@ with tab_bilan:
             "🟢 Bon résultat : le modèle avait le bon vainqueur/nul, même si le score exact diffère · "
             "🟡 Résultat raté, xG cohérent : mauvais 1N2 mais le xG collait à la performance réelle "
             "(ex: domination sans concrétisation) · 🔴 Raté : ni le résultat ni le xG ne correspondaient. "
-            "« (réel) » = xG relevé manuellement sur un match joué, « (modèle) » = estimation pré-match faute de relevé."
+            "« (Sofascore) » = xG réel relevé manuellement sur sofascore.com après le match, "
+            "« (modèle) » = estimation pré-match faute de relevé disponible."
         )
 
         st.markdown("---")
         st.markdown("##### ✍️ Renseigner un xG réel")
         st.caption(
-            f"Ajoute les xG relevés (Sofascore, Flashscore...) dans `{os.path.basename('xg_reel.csv')}` "
-            "puis recharge la page. Format : `date,home_team,away_team,xg_home_reel,xg_away_reel` "
+            f"Source : [Sofascore](https://www.sofascore.com) — relève le xG des deux équipes après chaque match "
+            f"et ajoute-le dans `{os.path.basename('xg_reel.csv')}`, puis recharge la page. "
+            "Format : `date,home_team,away_team,xg_home_reel,xg_away_reel` "
             "(noms d'équipes en anglais, ex: `Spain`, `USA`, `South Korea`)."
         )
         st.code("2026-06-15,Spain,Cape Verde,2.4,0.6", language="text")
