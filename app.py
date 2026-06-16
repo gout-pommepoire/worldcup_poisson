@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import seaborn as sns
+import plotly.graph_objects as go
 from itertools import product
 
 from data_loader import load_all
@@ -146,10 +147,41 @@ with col_strength:
     st.caption(f"Classement modèle : {home} #{rank_h} · {away} #{rank_a}")
 
 # ---------------------------------------------------------------------------
-# Classement général (expandable)
+# Top favoris — visuel
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
+st.markdown("#### 🌟 Top 10 des favoris")
+
+top10 = strengths.head(10).iloc[::-1]   # ordre inversé pour barres horizontales (1er en haut)
+max_val = strengths["overall"].max()
+
+colors = ["#26215C" if i == 9 else "#3C3489" if i >= 7 else "#7F77DD" if i >= 4 else "#AFA9EC"
+          for i in range(len(top10))]
+
+fig_fav = go.Figure(go.Bar(
+    x=top10["overall"],
+    y=top10["team"],
+    orientation="h",
+    marker_color=colors,
+    text=[f"{v:.2f}" for v in top10["overall"]],
+    textposition="outside",
+    hovertemplate="%{y} : %{x:.3f}<extra></extra>",
+))
+fig_fav.update_layout(
+    height=380,
+    margin=dict(l=10, r=40, t=10, b=10),
+    xaxis=dict(title="Force globale (attaque / défense)", range=[0, max_val * 1.15]),
+    yaxis=dict(title=""),
+    plot_bgcolor="rgba(0,0,0,0)",
+    paper_bgcolor="rgba(0,0,0,0)",
+)
+st.plotly_chart(fig_fav, use_container_width=True)
+
+# ---------------------------------------------------------------------------
+# Classement général (expandable)
+# ---------------------------------------------------------------------------
+
 with st.expander("🏆 Classement complet des équipes par force"):
     st.dataframe(
         strengths.assign(
