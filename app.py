@@ -18,7 +18,7 @@ from itertools import product
 from data_loader import load_all
 from model import DixonColesModel
 from tournament import build_groups, run_monte_carlo
-from backtest import run_backtest, summary_stats
+from backtest import summary_stats
 
 # ---------------------------------------------------------------------------
 # Config page
@@ -277,16 +277,21 @@ with tab_bilan:
         icon="⚠️",
     )
 
-    @st.cache_resource(show_spinner="Ré-entraînement leave-one-out sur les matchs joués (~30s/match)…")
-    def get_backtest(_df, xg_reel_mtime):
-        bt = run_backtest(_df)
-        return bt
+    BACKTEST_CSV = "backtest_results.csv"
 
-    xg_reel_mtime = os.path.getmtime("xg_reel.csv") if os.path.exists("xg_reel.csv") else 0
-    backtest_df = get_backtest(df, xg_reel_mtime)
+    if not os.path.exists(BACKTEST_CSV):
+        backtest_df = pd.DataFrame()
+        st.info(
+            "Bilan pas encore calculé. Lance `python precompute_backtest.py` en local, "
+            "puis commit/push `backtest_results.csv`."
+        )
+    else:
+        backtest_df = pd.read_csv(BACKTEST_CSV)
+        bt_mtime = datetime.fromtimestamp(os.path.getmtime(BACKTEST_CSV)).strftime("%d/%m/%Y à %H:%M")
+        st.caption(f"📌 Bilan précalculé le {bt_mtime} (calcul lourd fait en local, pas sur le serveur)")
 
     if backtest_df.empty:
-        st.info("Aucun match CdM 2026 joué pour l'instant.")
+        pass
     else:
         stats = summary_stats(backtest_df)
 
