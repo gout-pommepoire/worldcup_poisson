@@ -157,13 +157,21 @@ class DixonColesModel:
         return max(lam, 1e-6), max(mu, 1e-6)
 
     def score_matrix(self, home: str, away: str, max_goals: int = MAX_GOALS) -> np.ndarray:
-        """Matrice (max_goals+1, max_goals+1) des probabilités de score."""
+        """Matrice (max_goals+1, max_goals+1) des probabilités de score — vectorisée."""
         lam, mu = self._lambdas(home, away)
-        matrix = np.zeros((max_goals + 1, max_goals + 1))
-        for hg, ag in product(range(max_goals + 1), range(max_goals + 1)):
-            t = tau(hg, ag, lam, mu, self.rho)
-            matrix[hg, ag] = t * poisson.pmf(hg, lam) * poisson.pmf(ag, mu)
-        # Normalisation
+        goals = np.arange(max_goals + 1)
+
+        log_pmf_h = goals * np.log(lam) - lam - gammaln(goals + 1)
+        log_pmf_a = goals * np.log(mu)  - mu  - gammaln(goals + 1)
+        matrix = np.exp(log_pmf_h[:, None] + log_pmf_a[None, :])
+
+        rho = self.rho
+        matrix[0, 0] *= max(1 - lam * mu * rho, 1e-10)
+        if max_goals >= 1:
+            matrix[1, 0] *= 1 + mu * rho
+            matrix[0, 1] *= 1 + lam * rho
+            matrix[1, 1] *= 1 - rho
+
         matrix /= matrix.sum()
         return matrix
 
