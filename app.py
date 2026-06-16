@@ -3,6 +3,9 @@ Interface Streamlit — Modèle Dixon-Coles Coupe du Monde 2026
 Lance avec : streamlit run app.py
 """
 
+import os
+from datetime import datetime
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -25,7 +28,10 @@ st.set_page_config(
 )
 
 st.title("⚽ Prédicteur Coupe du Monde 2026")
-st.caption("Modèle de Poisson Dixon-Coles • Pondération temporelle • 5 350 matchs historiques")
+st.caption("Modèle de Poisson Dixon-Coles • Pondération temporelle")
+
+csv_mtime_top = datetime.fromtimestamp(os.path.getmtime("results.csv")).strftime("%d/%m/%Y à %H:%M")
+st.info(f"🔄 **Données mises à jour le {csv_mtime_top}**", icon="📅")
 
 # ---------------------------------------------------------------------------
 # Chargement & entraînement (caché)
@@ -162,8 +168,15 @@ with st.expander("🏆 Classement complet des équipes par force"):
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
+last_match_date = df["date"].max().strftime("%d/%m/%Y")
+csv_mtime = datetime.fromtimestamp(os.path.getmtime("results.csv")).strftime("%d/%m/%Y %H:%M")
+
 st.caption(
-    f"Données : {len(df)} matchs ({df['date'].dt.year.min()}–{df['date'].dt.year.max()}) · "
+    f"📅 Dernier match dans les données : **{last_match_date}** · "
+    f"🔄 Fichier results.csv mis à jour le : **{csv_mtime}** · "
+    f"📊 {len(df)} matchs ({df['date'].dt.year.min()}–{df['date'].dt.year.max()})"
+)
+st.caption(
     "Source : martj42/international_results · "
     "Modèle : Dixon-Coles (1997) avec pondération temporelle (demi-vie 10 ans)"
 )
