@@ -342,15 +342,6 @@ with tab_bilan:
             "« (modèle) » = estimation pré-match faute de relevé disponible."
         )
 
-        st.markdown("---")
-        st.markdown("##### ✍️ Renseigner un xG réel")
-        st.caption(
-            f"Source : [Sofascore](https://www.sofascore.com) — relève le xG des deux équipes après chaque match "
-            f"et ajoute-le dans `{os.path.basename('xg_reel.csv')}`, puis recharge la page. "
-            "Format : `date,home_team,away_team,xg_home_reel,xg_away_reel` "
-            "(noms d'équipes en anglais, ex: `Spain`, `USA`, `South Korea`)."
-        )
-        st.code("2026-06-15,Spain,Cape Verde,2.4,0.6", language="text")
 
 # ---------------------------------------------------------------------------
 # Footer
