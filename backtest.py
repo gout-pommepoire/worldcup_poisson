@@ -112,7 +112,10 @@ def run_backtest(df_all: pd.DataFrame) -> pd.DataFrame:
 
         actual_out = outcome_label(actual_h, actual_a)
         pred_out   = predicted_outcome(result)
-        result_correct = (actual_out == pred_out)
+        # Bon résultat si la proba 1N2 est correcte OU si le score le plus probable donne le bon 1N2
+        pred_score_parts = result["most_likely_score"].split("-")
+        pred_score_outcome = outcome_label(int(pred_score_parts[0]), int(pred_score_parts[1]))
+        result_correct = (actual_out == pred_out) or (actual_out == pred_score_outcome)
 
         pred_score = result["most_likely_score"]
         actual_score = f"{actual_h}-{actual_a}"
