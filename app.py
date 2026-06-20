@@ -21,6 +21,7 @@ from backtest import summary_stats
 from tournament import (
     build_groups, load_wc2026_fixtures, group_standings,
     qualification_probabilities, build_bracket_labels, resolve_round32_slots,
+    predict_round32_qualifiers, most_likely_winner,
 )
 
 HOST_NATIONS = {"USA", "Mexico", "Canada"}
@@ -229,9 +230,18 @@ with tab_groupes:
         for i, (a, b) in enumerate(round32_resolved):
             cols[i % 2].markdown(f"**Match {i+1}** — {a}  vs  {b}")
 
-    with st.expander("⚔️ 16èmes de finale (8 matchs)"):
+    round32_pred = predict_round32_qualifiers(round32_labels, standings_map, qualif_df)
+    round32_winners = [most_likely_winner(model, a, b) for a, b in round32_pred]
+
+    with st.expander("⚔️ 16èmes de finale (8 matchs) — pronostic du modèle", expanded=True):
+        st.caption(
+            "Qualifiés projetés à partir du classement actuel (1er/2e de groupe + meilleurs "
+            "3èmes selon leur proba de qualification), puis vainqueur le plus probable de "
+            "chaque 32ème — pronostic, pas une certitude."
+        )
         for i in range(8):
-            st.markdown(f"**Match {i+1}** — Vainqueur 32èmes #{2*i+1}  vs  Vainqueur 32èmes #{2*i+2}")
+            a, b = round32_winners[2*i], round32_winners[2*i + 1]
+            st.markdown(f"**Match {i+1}** — {a}  vs  {b}")
 
     with st.expander("⚔️ Quarts de finale (4 matchs)"):
         for i in range(4):

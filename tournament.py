@@ -378,6 +378,47 @@ def resolve_round32_slots(label_pairs: list[tuple[str, str]],
     return [(resolve(a), resolve(b)) for a, b in label_pairs]
 
 
+def predict_round32_qualifiers(label_pairs: list[tuple[str, str]],
+                                group_standings_map: dict[str, pd.DataFrame],
+                                qualif_df: pd.DataFrame) -> list[tuple[str, str]]:
+    """
+    Remplace TOUS les placeholders par le pronostic actuel du modèle :
+    - "1er/2e Groupe X" → 1er/2e actuel du classement réel du groupe (même si pas terminé)
+    - "Meilleur 3e #n" → parmi les 3èmes actuels de chaque groupe, les 8 avec la
+      meilleure probabilité de qualification, classés par cette probabilité
+    """
+    thirds = []
+    for g, df in group_standings_map.items():
+        if len(df) >= 3:
+            team = df.iloc[2]["team"]
+            prob_row = qualif_df[(qualif_df["group"] == g) & (qualif_df["team"] == team)]
+            prob = float(prob_row["prob_qualif"].iloc[0]) if not prob_row.empty else 0.0
+            thirds.append((team, prob))
+    thirds.sort(key=lambda x: x[1], reverse=True)
+    best_8_thirds = [t for t, _ in thirds[:8]]
+
+    def resolve(label: str) -> str:
+        if label.startswith("1er "):
+            g = label[len("1er "):]
+            return group_standings_map[g].iloc[0]["team"]
+        if label.startswith("2e "):
+            g = label[len("2e "):]
+            return group_standings_map[g].iloc[1]["team"]
+        if label.startswith("Meilleur 3e #"):
+            i = int(label.split("#")[1]) - 1
+            return best_8_thirds[i] if i < len(best_8_thirds) else label
+        return label
+
+    return [(resolve(a), resolve(b)) for a, b in label_pairs]
+
+
+def most_likely_winner(model: DixonColesModel, team_a: str, team_b: str) -> str:
+    """Pronostic déterministe du vainqueur d'un match à élimination directe
+    (terrain neutre) : l'équipe avec la plus forte probabilité de victoire."""
+    result = model.predict(team_a, team_b, neutral=True)
+    return team_a if result["prob_home_win"] >= result["prob_away_win"] else team_b
+
+
 def run_monte_carlo(model: DixonColesModel, groups: dict[str, list[str]],
                      n_sims: int = 10_000, seed: int = 42) -> pd.DataFrame:
     _MATRIX_CACHE.clear()
