@@ -46,13 +46,15 @@ def tau(x: int, y: int, lam: float, mu: float, rho: float) -> float:
 
 def neg_log_likelihood(params: np.ndarray, hg: np.ndarray, ag: np.ndarray,
                         hi: np.ndarray, ai: np.ndarray, w: np.ndarray,
-                        n: int) -> float:
+                        neutral: np.ndarray, n: int) -> float:
     """
     params[:n-1]   = att des équipes 1..n (att[0] = 1 fixé pour identifiabilité)
     params[n-1:2n-1] = def
     params[2n-1]   = home_adv
     params[2n]     = rho
     params[2n+1]   = alpha
+
+    home_adv ne s'applique pas sur terrain neutre (ex: Coupe du Monde hors pays hôte).
     """
     att_free = params[:n-1]
     att_full = np.concatenate([[1.0], att_free])   # att[0] = 1 fixé
@@ -62,8 +64,10 @@ def neg_log_likelihood(params: np.ndarray, hg: np.ndarray, ag: np.ndarray,
     rho      = params[2*n]
     alpha    = params[2*n+1]
 
-    lam = np.maximum(alpha * att_full[hi] * defe[ai] * home_adv, 1e-6)
-    mu  = np.maximum(alpha * att_full[ai] * defe[hi],            1e-6)
+    home_adv_eff = np.where(neutral, 1.0, home_adv)
+
+    lam = np.maximum(alpha * att_full[hi] * defe[ai] * home_adv_eff, 1e-6)
+    mu  = np.maximum(alpha * att_full[ai] * defe[hi],                1e-6)
 
     ll = w * (
         hg * np.log(lam) - lam - gammaln(hg + 1)
@@ -109,6 +113,7 @@ class DixonColesModel:
         hg = df["home_goals"].to_numpy(dtype=int)
         ag = df["away_goals"].to_numpy(dtype=int)
         w  = df["weight"].to_numpy(dtype=float)
+        neutral = df["neutral"].to_numpy(dtype=bool) if "neutral" in df.columns else np.zeros(len(df), dtype=bool)
 
         # att[0] fixé à 1 → (n-1) att libres + n def + home_adv + rho + alpha = 2n+2 params
         x0 = np.ones(2*n + 2)
@@ -126,7 +131,7 @@ class DixonColesModel:
         result = minimize(
             neg_log_likelihood,
             x0,
-            args=(hg, ag, hi, ai, w, n),
+            args=(hg, ag, hi, ai, w, neutral, n),
             method="L-BFGS-B",
             bounds=bounds,
             options={"maxiter": 3000, "maxfun": 60000, "ftol": 1e-9, "gtol": 1e-6},
@@ -151,14 +156,15 @@ class DixonColesModel:
     # Prédiction
     # -----------------------------------------------------------------------
 
-    def _lambdas(self, home: str, away: str) -> tuple[float, float]:
-        lam = self.alpha * self.att[home] * self.defe[away] * self.home_adv
+    def _lambdas(self, home: str, away: str, neutral: bool = True) -> tuple[float, float]:
+        home_adv_eff = 1.0 if neutral else self.home_adv
+        lam = self.alpha * self.att[home] * self.defe[away] * home_adv_eff
         mu  = self.alpha * self.att[away] * self.defe[home]
         return max(lam, 1e-6), max(mu, 1e-6)
 
-    def score_matrix(self, home: str, away: str, max_goals: int = MAX_GOALS) -> np.ndarray:
+    def score_matrix(self, home: str, away: str, max_goals: int = MAX_GOALS, neutral: bool = True) -> np.ndarray:
         """Matrice (max_goals+1, max_goals+1) des probabilités de score — vectorisée."""
-        lam, mu = self._lambdas(home, away)
+        lam, mu = self._lambdas(home, away, neutral)
         goals = np.arange(max_goals + 1)
 
         log_pmf_h = goals * np.log(lam) - lam - gammaln(goals + 1)
@@ -175,8 +181,12 @@ class DixonColesModel:
         matrix /= matrix.sum()
         return matrix
 
-    def predict(self, home: str, away: str) -> dict:
+    def predict(self, home: str, away: str, neutral: bool = True) -> dict:
         """
+        neutral : True si le match se joue en terrain neutre (par défaut, cas de
+                  la quasi-totalité des matchs de Coupe du Monde hors pays hôtes
+                  USA/Mexique/Canada) — alors l'avantage du terrain n'est pas appliqué.
+
         Retourne :
           - score_matrix  : probabilités de chaque score
           - prob_home_win : P(domicile gagne)
@@ -186,7 +196,7 @@ class DixonColesModel:
           - expected      : (buts_dom attendus, buts_ext attendus)
         """
         self._check_teams(home, away)
-        mat = self.score_matrix(home, away)
+        mat = self.score_matrix(home, away, neutral=neutral)
 
         p_home = float(np.tril(mat, -1).sum())   # hg > ag
         p_draw = float(np.trace(mat))
@@ -195,7 +205,7 @@ class DixonColesModel:
         idx = np.unravel_index(mat.argmax(), mat.shape)
         most_likely = (int(idx[0]), int(idx[1]))
 
-        lam, mu = self._lambdas(home, away)
+        lam, mu = self._lambdas(home, away, neutral)
 
         return {
             "home_team":     home,
@@ -209,10 +219,10 @@ class DixonColesModel:
             "score_matrix":  mat,
         }
 
-    def top_scores(self, home: str, away: str, n: int = 10) -> pd.DataFrame:
+    def top_scores(self, home: str, away: str, n: int = 10, neutral: bool = True) -> pd.DataFrame:
         """Top N scores les plus probables."""
         self._check_teams(home, away)
-        mat = self.score_matrix(home, away)
+        mat = self.score_matrix(home, away, neutral=neutral)
         rows = [
             {"score": f"{hg}-{ag}", "prob": mat[hg, ag]}
             for hg, ag in product(range(MAX_GOALS + 1), range(MAX_GOALS + 1))

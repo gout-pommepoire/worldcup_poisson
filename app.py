@@ -19,6 +19,8 @@ from data_loader import load_all
 from model import DixonColesModel
 from backtest import summary_stats
 
+HOST_NATIONS = {"USA", "Mexico", "Canada"}
+
 WC2026_TEAMS = sorted([
     'Algeria', 'Argentina', 'Australia', 'Austria', 'Belgium',
     'Bosnia and Herzegovina', 'Brazil', 'Canada', 'Cape Verde', 'Colombia',
@@ -90,10 +92,15 @@ tab_match, tab_bilan = st.tabs(["🎯 Match", "📈 Bilan"])
 # =============================================================================
 
 with tab_match:
-    result = model.predict(home, away)
+    is_neutral = home not in HOST_NATIONS
+    result = model.predict(home, away, neutral=is_neutral)
     mat = result["score_matrix"]
 
     st.subheader(f"{home}  vs  {away}")
+    if not is_neutral:
+        st.caption(f"🏟️ {home} joue à domicile en tant que pays hôte — avantage du terrain appliqué.")
+    else:
+        st.caption("🌍 Match joué en terrain neutre — pas d'avantage du terrain appliqué.")
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric(f"Victoire {home}", f"{result['prob_home_win']:.1%}")
@@ -125,7 +132,7 @@ with tab_match:
 
     with col_scores:
         st.markdown("#### Top scores")
-        top_df = model.top_scores(home, away, n=top_n)
+        top_df = model.top_scores(home, away, n=top_n, neutral=is_neutral)
         st.dataframe(top_df, hide_index=True, use_container_width=True)
 
     with col_strength:

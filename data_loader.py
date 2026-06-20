@@ -93,6 +93,7 @@ def load_all(csv_path: str = RESULTS_CSV) -> pd.DataFrame:
     df["weight"]    = df["date"].apply(time_weight)
     df["stage"]     = df["tournament"]
     df["source"]    = "results_csv"
+    df["neutral"]   = df["neutral"].fillna(False).astype(bool)
 
     df = df.sort_values("date").reset_index(drop=True)
 
@@ -103,4 +104,4 @@ def load_all(csv_path: str = RESULTS_CSV) -> pd.DataFrame:
     print(f"   Compétitifs récents (2020+) : {n_recent} matchs")
     print(f"   Équipes couvertes           : {len(set(df['home_team']) | set(df['away_team']))}")
 
-    return df[["date", "home_team", "away_team", "home_goals", "away_goals", "stage", "weight", "source"]]
+    return df[["date", "home_team", "away_team", "home_goals", "away_goals", "stage", "weight", "source", "neutral"]]

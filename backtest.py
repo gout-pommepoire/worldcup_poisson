@@ -107,7 +107,7 @@ def run_backtest(df_all: pd.DataFrame) -> pd.DataFrame:
         if home not in model.att or away not in model.att:
             continue
 
-        result = model.predict(home, away)
+        result = model.predict(home, away, neutral=bool(match["neutral"]))
         lam, mu = result["expected_home_goals"], result["expected_away_goals"]
 
         actual_out = outcome_label(actual_h, actual_a)
