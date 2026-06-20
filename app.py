@@ -18,6 +18,10 @@ from itertools import product
 from data_loader import load_all
 from model import DixonColesModel
 from backtest import summary_stats
+from tournament import (
+    build_groups, load_wc2026_fixtures, group_standings,
+    qualification_probabilities, build_bracket_labels, resolve_round32_slots,
+)
 
 HOST_NATIONS = {"USA", "Mexico", "Canada"}
 
@@ -85,7 +89,7 @@ top_n = st.sidebar.slider("Top N scores", 5, 15, 10)
 
 strengths = model.team_strengths()
 
-tab_match, tab_bilan = st.tabs(["🎯 Match", "📈 Bilan"])
+tab_match, tab_groupes, tab_bilan = st.tabs(["🎯 Match", "🏟️ Groupes & Tableau", "📈 Bilan"])
 
 # =============================================================================
 # ONGLET MATCH
@@ -158,6 +162,87 @@ with tab_match:
         rank_h = strengths[strengths["team"] == home].index[0] + 1
         rank_a = strengths[strengths["team"] == away].index[0] + 1
         st.caption(f"Classement modèle : {home} #{rank_h} · {away} #{rank_a}")
+
+# =============================================================================
+# ONGLET GROUPES & TABLEAU
+# =============================================================================
+
+with tab_groupes:
+
+    @st.cache_resource(show_spinner="Calcul des classements et probabilités de qualification…")
+    def get_group_data(_model):
+        groups = build_groups()
+        fixtures = load_wc2026_fixtures()
+        qualif = qualification_probabilities(_model, groups, fixtures, n_sims=3000, seed=42)
+        standings = {g: group_standings(teams, fixtures) for g, teams in groups.items()}
+        matches_played = {
+            g: int(fixtures[
+                fixtures["home_team"].isin(teams) & fixtures["away_team"].isin(teams) & fixtures["played"]
+            ].shape[0])
+            for g, teams in groups.items()
+        }
+        return groups, fixtures, qualif, standings, matches_played
+
+    groups, fixtures, qualif_df, standings_map, matches_played = get_group_data(model)
+
+    st.markdown("#### 🗂️ Classement des groupes")
+    st.caption(
+        "Classement calculé sur les matchs déjà joués · probabilité de qualification "
+        "(1er/2e + 8 meilleurs 3èmes) estimée par simulation Monte Carlo des matchs restants."
+    )
+
+    group_choice = st.selectbox("Groupe", list(groups.keys()))
+
+    table = standings_map[group_choice].merge(
+        qualif_df[qualif_df["group"] == group_choice][["team", "prob_qualif"]],
+        on="team",
+    )
+    table = table.assign(rank=range(1, len(table) + 1))[
+        ["rank", "team", "j", "v", "n", "d", "gf", "ga", "gd", "pts", "prob_qualif"]
+    ].rename(columns={
+        "rank": "#", "team": "Équipe", "j": "J", "v": "V", "n": "N", "d": "D",
+        "gf": "BP", "ga": "BC", "gd": "Diff", "pts": "Pts", "prob_qualif": "Proba qualif.",
+    })
+
+    st.dataframe(
+        table.style.format({"Proba qualif.": "{:.0%}"}),
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.caption(f"{matches_played[group_choice]}/6 matchs joués dans ce groupe.")
+
+    st.markdown("---")
+
+    st.markdown("#### 🏆 Tableau à élimination directe")
+    st.caption(
+        "Structure du tableau (32èmes → finale). Les affiches des 32èmes se précisent "
+        "au fur et à mesure que les groupes se terminent ; les tours suivants restent "
+        "génériques jusqu'à connaître les qualifiés réels."
+    )
+
+    group_names = list(groups.keys())
+    round32_labels = build_bracket_labels(group_names)
+    round32_resolved = resolve_round32_slots(round32_labels, standings_map, matches_played)
+
+    with st.expander("⚔️ 32èmes de finale (16 matchs)", expanded=True):
+        cols = st.columns(2)
+        for i, (a, b) in enumerate(round32_resolved):
+            cols[i % 2].markdown(f"**Match {i+1}** — {a}  vs  {b}")
+
+    with st.expander("⚔️ 16èmes de finale (8 matchs)"):
+        for i in range(8):
+            st.markdown(f"**Match {i+1}** — Vainqueur 32èmes #{2*i+1}  vs  Vainqueur 32èmes #{2*i+2}")
+
+    with st.expander("⚔️ Quarts de finale (4 matchs)"):
+        for i in range(4):
+            st.markdown(f"**Match {i+1}** — Vainqueur 16èmes #{2*i+1}  vs  Vainqueur 16èmes #{2*i+2}")
+
+    with st.expander("⚔️ Demi-finales (2 matchs)"):
+        for i in range(2):
+            st.markdown(f"**Match {i+1}** — Vainqueur 1/4 #{2*i+1}  vs  Vainqueur 1/4 #{2*i+2}")
+
+    with st.expander("🏆 Finale"):
+        st.markdown("Vainqueur 1/2 #1  vs  Vainqueur 1/2 #2")
 
 # =============================================================================
 # ONGLET BILAN — prédictions vs résultats réels
