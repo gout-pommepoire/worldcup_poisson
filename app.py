@@ -52,16 +52,18 @@ def render_bracket_tree(rounds: list[list[tuple[str, str]]], champion: str) -> s
     def add_box(x, y, label_a, label_b, gold=False):
         bg = "linear-gradient(135deg,#FFD700,#B8860B)" if gold else "linear-gradient(135deg,#1a1a2e,#26215C)"
         color = "#1a1a2e" if gold else "#fff"
-        elems.append(f'''
-        <div style="position:absolute; left:{x}px; top:{y - BOX_H/2}px; width:{BOX_W}px; height:{BOX_H}px;
-                    background:{bg}; border-radius:7px; color:{color}; font-size:12.5px; font-weight:600;
-                    display:flex; flex-direction:column; justify-content:center; padding:0 8px;
-                    box-shadow:0 2px 5px rgba(0,0,0,0.3); overflow:hidden; white-space:nowrap;
-                    text-overflow:ellipsis; line-height:1.5;">
-            <div>{label_a}</div>
-            <div style="opacity:0.55; font-size:9px; font-weight:400;">vs</div>
-            <div>{label_b}</div>
-        </div>''')
+        style = (
+            f"position:absolute; left:{x}px; top:{y - BOX_H/2}px; width:{BOX_W}px; height:{BOX_H}px; "
+            f"background:{bg}; border-radius:7px; color:{color}; font-size:12.5px; font-weight:600; "
+            f"display:flex; flex-direction:column; justify-content:center; padding:0 8px; "
+            f"box-shadow:0 2px 5px rgba(0,0,0,0.3); overflow:hidden; white-space:nowrap; "
+            f"text-overflow:ellipsis; line-height:1.5;"
+        )
+        elems.append(
+            f'<div style="{style}"><div>{label_a}</div>'
+            f'<div style="opacity:0.55; font-size:9px; font-weight:400;">vs</div>'
+            f'<div>{label_b}</div></div>'
+        )
 
     def add_hline(x, y, w):
         elems.append(f'<div style="position:absolute; left:{x}px; top:{y-1}px; width:{w}px; height:2px; background:#9994d9;"></div>')
@@ -89,22 +91,20 @@ def render_bracket_tree(rounds: list[list[tuple[str, str]]], champion: str) -> s
     y_final = center_y(last_k, 0)
     x_champ = x_final + BOX_W + COL_GAP
     add_hline(x_final + BOX_W, y_final, COL_GAP)
-    elems.append(f'''
-    <div style="position:absolute; left:{x_champ}px; top:{y_final - BOX_H/2 - 4}px; width:{BOX_W}px; height:{BOX_H+8}px;
-                background:linear-gradient(135deg,#FFD700,#B8860B); border-radius:8px; color:#1a1a2e;
-                font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center;
-                box-shadow:0 3px 8px rgba(0,0,0,0.35); text-align:center; padding:0 6px;">
-        🏆 {champion}
-    </div>''')
+    champ_style = (
+        f"position:absolute; left:{x_champ}px; top:{y_final - BOX_H/2 - 4}px; width:{BOX_W}px; height:{BOX_H+8}px; "
+        f"background:linear-gradient(135deg,#FFD700,#B8860B); border-radius:8px; color:#1a1a2e; "
+        f"font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; "
+        f"box-shadow:0 3px 8px rgba(0,0,0,0.35); text-align:center; padding:0 6px;"
+    )
+    elems.append(f'<div style="{champ_style}">🏆 {champion}</div>')
 
     inner_html = "".join(elems)
-    return f'''
-    <div style="overflow-x:auto; width:100%; padding-bottom:10px;">
-      <div style="position:relative; width:{total_width}px; height:{total_height}px; min-width:{total_width}px;">
-        {inner_html}
-      </div>
-    </div>
-    '''
+    outer_style = f"position:relative; width:{total_width}px; height:{total_height}px; min-width:{total_width}px;"
+    return (
+        f'<div style="overflow-x:auto; width:100%; padding-bottom:10px;">'
+        f'<div style="{outer_style}">{inner_html}</div></div>'
+    )
 
 HOST_NATIONS = {"USA", "Mexico", "Canada"}
 
