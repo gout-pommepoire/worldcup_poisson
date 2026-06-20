@@ -143,8 +143,8 @@ def build_bracket_32(qualified_groups: dict[str, pd.DataFrame],
     for i in range(4):
         pairs.append((remaining_firsts[i], best_thirds[i]))
 
-    # 4 affiches restantes : seconds restants vs 4 autres meilleurs 3èmes
-    remaining_seconds = [seconds[g] for g in group_names[4:8]]
+    # 4 affiches restantes : seconds restants (groupes 0-3, pas encore utilisés) vs 4 autres meilleurs 3èmes
+    remaining_seconds = [seconds[g] for g in group_names[0:4]]
     for i in range(4):
         pairs.append((remaining_seconds[i], best_thirds[4 + i] if i + 4 < len(best_thirds) else remaining_seconds[i]))
 
@@ -352,7 +352,7 @@ def build_bracket_labels(group_names: list[str]) -> list[tuple[str, str]]:
     for i in range(4):
         pairs.append((remaining_firsts[i], best_thirds[i]))
 
-    remaining_seconds = [seconds[g] for g in group_names[4:8]]
+    remaining_seconds = [seconds[g] for g in group_names[0:4]]
     for i in range(4):
         pairs.append((remaining_seconds[i], best_thirds[4 + i] if i + 4 < len(best_thirds) else remaining_seconds[i]))
 

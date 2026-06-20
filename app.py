@@ -20,9 +20,75 @@ from model import DixonColesModel
 from backtest import summary_stats
 from tournament import (
     build_groups, load_wc2026_fixtures, group_standings,
-    qualification_probabilities, build_bracket_labels, resolve_round32_slots,
+    qualification_probabilities, build_bracket_labels,
     predict_round32_qualifiers, most_likely_winner,
 )
+
+
+def render_bracket_round(matchups: list[tuple[str, str]]) -> str:
+    """Cartes responsive (grid auto-fit) pour afficher un tour du tableau."""
+    cards = "".join(
+        f'''<div class="bracket-card">
+              <div class="bracket-match-label">Match {i+1}</div>
+              <div class="bracket-team">{a}</div>
+              <div class="bracket-vs">vs</div>
+              <div class="bracket-team">{b}</div>
+            </div>'''
+        for i, (a, b) in enumerate(matchups)
+    )
+    return f'''
+    <style>
+    .bracket-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        margin-bottom: 6px;
+    }}
+    .bracket-card {{
+        background: linear-gradient(135deg, #1a1a2e, #26215C);
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }}
+    .bracket-match-label {{
+        font-size: 10px;
+        opacity: 0.55;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }}
+    .bracket-team {{
+        font-size: 14.5px;
+        font-weight: 600;
+        padding: 2px 0;
+    }}
+    .bracket-vs {{
+        font-size: 10px;
+        opacity: 0.45;
+        text-align: center;
+    }}
+    </style>
+    <div class="bracket-grid">{cards}</div>
+    '''
+
+
+def render_champion_card(team: str) -> str:
+    return f'''
+    <style>
+    .champion-card {{
+        background: linear-gradient(135deg, #FFD700, #B8860B);
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        color: #1a1a2e;
+        font-size: 22px;
+        font-weight: 800;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    }}
+    </style>
+    <div class="champion-card">🏆 {team}</div>
+    '''
 
 HOST_NATIONS = {"USA", "Mexico", "Canada"}
 
@@ -50,9 +116,6 @@ st.set_page_config(
 
 st.title("⚽ Prédicteur Coupe du Monde 2026")
 st.caption("Modèle de Poisson Dixon-Coles • Pondération temporelle")
-
-csv_mtime_top = datetime.fromtimestamp(os.path.getmtime("results.csv")).strftime("%d/%m/%Y à %H:%M")
-st.info(f"🔄 **Données mises à jour le {csv_mtime_top}**", icon="📅")
 
 # ---------------------------------------------------------------------------
 # Chargement & entraînement (caché)
@@ -214,45 +277,46 @@ with tab_groupes:
 
     st.markdown("---")
 
-    st.markdown("#### 🏆 Tableau à élimination directe")
+    st.markdown("#### 🏆 Tableau à élimination directe — pronostic du modèle")
     st.caption(
-        "Structure du tableau (32èmes → finale). Les affiches des 32èmes se précisent "
-        "au fur et à mesure que les groupes se terminent ; les tours suivants restent "
-        "génériques jusqu'à connaître les qualifiés réels."
+        "Qualifiés des 32èmes projetés à partir du classement actuel de chaque groupe "
+        "(1er/2e réel + meilleurs 3èmes selon leur proba de qualification), puis vainqueur "
+        "le plus probable à chaque tour jusqu'à la finale. C'est un pronostic basé sur "
+        "l'état actuel — pas une certitude, ça évoluera avec les résultats."
     )
 
     group_names = list(groups.keys())
     round32_labels = build_bracket_labels(group_names)
-    round32_resolved = resolve_round32_slots(round32_labels, standings_map, matches_played)
-
-    with st.expander("⚔️ 32èmes de finale (16 matchs)", expanded=True):
-        cols = st.columns(2)
-        for i, (a, b) in enumerate(round32_resolved):
-            cols[i % 2].markdown(f"**Match {i+1}** — {a}  vs  {b}")
-
     round32_pred = predict_round32_qualifiers(round32_labels, standings_map, qualif_df)
     round32_winners = [most_likely_winner(model, a, b) for a, b in round32_pred]
 
-    with st.expander("⚔️ 16èmes de finale (8 matchs) — pronostic du modèle", expanded=True):
-        st.caption(
-            "Qualifiés projetés à partir du classement actuel (1er/2e de groupe + meilleurs "
-            "3èmes selon leur proba de qualification), puis vainqueur le plus probable de "
-            "chaque 32ème — pronostic, pas une certitude."
-        )
-        for i in range(8):
-            a, b = round32_winners[2*i], round32_winners[2*i + 1]
-            st.markdown(f"**Match {i+1}** — {a}  vs  {b}")
+    round16_matchups = [(round32_winners[2*i], round32_winners[2*i+1]) for i in range(8)]
+    round16_winners = [most_likely_winner(model, a, b) for a, b in round16_matchups]
+
+    quarts_matchups = [(round16_winners[2*i], round16_winners[2*i+1]) for i in range(4)]
+    quarts_winners = [most_likely_winner(model, a, b) for a, b in quarts_matchups]
+
+    demi_matchups = [(quarts_winners[2*i], quarts_winners[2*i+1]) for i in range(2)]
+    demi_winners = [most_likely_winner(model, a, b) for a, b in demi_matchups]
+
+    finale_matchup = (demi_winners[0], demi_winners[1])
+    champion = most_likely_winner(model, *finale_matchup)
+
+    with st.expander("⚔️ 32èmes de finale (16 matchs)", expanded=True):
+        st.markdown(render_bracket_round(round32_pred), unsafe_allow_html=True)
+
+    with st.expander("⚔️ 16èmes de finale (8 matchs)"):
+        st.markdown(render_bracket_round(round16_matchups), unsafe_allow_html=True)
 
     with st.expander("⚔️ Quarts de finale (4 matchs)"):
-        for i in range(4):
-            st.markdown(f"**Match {i+1}** — Vainqueur 16èmes #{2*i+1}  vs  Vainqueur 16èmes #{2*i+2}")
+        st.markdown(render_bracket_round(quarts_matchups), unsafe_allow_html=True)
 
     with st.expander("⚔️ Demi-finales (2 matchs)"):
-        for i in range(2):
-            st.markdown(f"**Match {i+1}** — Vainqueur 1/4 #{2*i+1}  vs  Vainqueur 1/4 #{2*i+2}")
+        st.markdown(render_bracket_round(demi_matchups), unsafe_allow_html=True)
 
-    with st.expander("🏆 Finale"):
-        st.markdown("Vainqueur 1/2 #1  vs  Vainqueur 1/2 #2")
+    with st.expander("🏆 Finale", expanded=True):
+        st.markdown(render_bracket_round([finale_matchup]), unsafe_allow_html=True)
+        st.markdown(render_champion_card(champion), unsafe_allow_html=True)
 
 # =============================================================================
 # ONGLET BILAN — prédictions vs résultats réels
@@ -302,11 +366,11 @@ with tab_bilan:
 
         display_df = backtest_df.copy()
         display_df["xG dom."] = display_df.apply(
-            lambda r: f"{r['xG_reel_dom']:.2f} (Sofascore)" if r["has_real_xg"] else f"{r['xG_predit_dom']:.2f} (modèle)",
+            lambda r: f"{r['xG_reel_dom']:.2f}" if r["has_real_xg"] else f"{r['xG_predit_dom']:.2f}",
             axis=1,
         )
         display_df["xG ext."] = display_df.apply(
-            lambda r: f"{r['xG_reel_ext']:.2f} (Sofascore)" if r["has_real_xg"] else f"{r['xG_predit_ext']:.2f} (modèle)",
+            lambda r: f"{r['xG_reel_ext']:.2f}" if r["has_real_xg"] else f"{r['xG_predit_ext']:.2f}",
             axis=1,
         )
 
@@ -332,9 +396,7 @@ with tab_bilan:
         st.caption(
             "🟢 Bon résultat : le modèle avait le bon vainqueur/nul, même si le score exact diffère · "
             "🟡 Résultat raté, xG cohérent : mauvais 1N2 mais le xG collait à la performance réelle "
-            "(ex: domination sans concrétisation) · 🔴 Raté : ni le résultat ni le xG ne correspondaient. "
-            "« (Sofascore) » = xG réel relevé manuellement sur sofascore.com après le match, "
-            "« (modèle) » = estimation pré-match faute de relevé disponible."
+            "(ex: domination sans concrétisation) · 🔴 Raté : ni le résultat ni le xG ne correspondaient."
         )
 
 
