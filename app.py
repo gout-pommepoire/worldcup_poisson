@@ -20,23 +20,24 @@ from model import DixonColesModel
 from backtest import summary_stats
 from tournament import (
     build_groups, load_wc2026_fixtures, group_standings,
-    qualification_probabilities, build_bracket_labels,
-    predict_round32_qualifiers, most_likely_winner,
+    qualification_probabilities, predicted_round32, knockout_monte_carlo,
 )
 
 
-def render_bracket_tree(rounds: list[list[tuple[str, str]]], champion: str) -> str:
+def render_bracket_tree(rounds: list[list[tuple[tuple[str, float], tuple[str, float]]]],
+                         champion: tuple[str, float]) -> str:
     """
     Tableau à élimination directe complet en arbre, à la manière des tableaux
     CdM classiques (32èmes → finale), avec lignes de connexion calculées en
     pixels (et non en CSS approximatif) pour un alignement parfait.
 
-    rounds : liste de tours, chacun étant une liste de matchs (team_a, team_b),
-             du premier tour (32èmes, 16 matchs) à la finale (1 match).
+    rounds : liste de tours, chacun étant une liste de matchs ((team_a, prob_a), (team_b, prob_b)),
+             du premier tour (32èmes, 16 matchs) à la finale (1 match). Les probabilités
+             viennent du Monte Carlo (fréquence d'apparition de l'équipe à cette position).
     """
-    U = 50            # unité verticale = hauteur de slot d'un match du 1er tour
+    U = 54            # unité verticale = hauteur de slot d'un match du 1er tour
     BOX_W = 150
-    BOX_H = 40
+    BOX_H = 46
     COL_GAP = 56
     n_first_round = len(rounds[0]) * 2   # nb d'équipes au 1er tour
 
@@ -49,20 +50,23 @@ def render_bracket_tree(rounds: list[list[tuple[str, str]]], champion: str) -> s
 
     elems = []
 
-    def add_box(x, y, label_a, label_b, gold=False):
+    def add_box(x, y, team_a, team_b, gold=False):
         bg = "linear-gradient(135deg,#FFD700,#B8860B)" if gold else "linear-gradient(135deg,#1a1a2e,#26215C)"
         color = "#1a1a2e" if gold else "#fff"
         style = (
             f"position:absolute; left:{x}px; top:{y - BOX_H/2}px; width:{BOX_W}px; height:{BOX_H}px; "
-            f"background:{bg}; border-radius:7px; color:{color}; font-size:12.5px; font-weight:600; "
+            f"background:{bg}; border-radius:7px; color:{color}; font-size:12px; font-weight:600; "
             f"display:flex; flex-direction:column; justify-content:center; padding:0 8px; "
             f"box-shadow:0 2px 5px rgba(0,0,0,0.3); overflow:hidden; white-space:nowrap; "
-            f"text-overflow:ellipsis; line-height:1.5;"
+            f"text-overflow:ellipsis; line-height:1.4;"
         )
+        (a, pa), (b, pb) = team_a, team_b
         elems.append(
-            f'<div style="{style}"><div>{label_a}</div>'
-            f'<div style="opacity:0.55; font-size:9px; font-weight:400;">vs</div>'
-            f'<div>{label_b}</div></div>'
+            f'<div style="{style}">'
+            f'<div>{a} <span style="opacity:0.55; font-size:9.5px; font-weight:400;">{pa:.0%}</span></div>'
+            f'<div style="opacity:0.45; font-size:8.5px; font-weight:400;">vs</div>'
+            f'<div>{b} <span style="opacity:0.55; font-size:9.5px; font-weight:400;">{pb:.0%}</span></div>'
+            f'</div>'
         )
 
     def add_hline(x, y, w):
@@ -97,7 +101,8 @@ def render_bracket_tree(rounds: list[list[tuple[str, str]]], champion: str) -> s
         f"font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; "
         f"box-shadow:0 3px 8px rgba(0,0,0,0.35); text-align:center; padding:0 6px;"
     )
-    elems.append(f'<div style="{champ_style}">🏆 {champion}</div>')
+    champ_team, champ_prob = champion
+    elems.append(f'<div style="{champ_style}">🏆 {champ_team} ({champ_prob:.0%})</div>')
 
     inner_html = "".join(elems)
     outer_style = f"position:relative; width:{total_width}px; height:{total_height}px; min-width:{total_width}px;"
@@ -249,21 +254,25 @@ with tab_match:
 
 with tab_groupes:
 
-    @st.cache_resource(show_spinner="Calcul des classements et probabilités de qualification…")
+    @st.cache_resource(show_spinner="Simulation Monte Carlo (groupes + tableau complet)…")
     def get_group_data(_model):
         groups = build_groups()
         fixtures = load_wc2026_fixtures()
-        qualif = qualification_probabilities(_model, groups, fixtures, n_sims=3000, seed=42)
         standings = {g: group_standings(teams, fixtures) for g, teams in groups.items()}
+        qualif = qualification_probabilities(_model, groups, fixtures, n_sims=3000, seed=42)
+        # 32èmes déterministes (1er/2e réel + meilleurs 3èmes) → jamais de doublon possible
+        round32_pairs = predicted_round32(standings, qualif)
+        # Monte Carlo seulement sur la phase à élimination (32 équipes fixes) → pas de doublon non plus
+        bracket = knockout_monte_carlo(_model, round32_pairs, n_sims=3000, seed=42)
         matches_played = {
             g: int(fixtures[
                 fixtures["home_team"].isin(teams) & fixtures["away_team"].isin(teams) & fixtures["played"]
             ].shape[0])
             for g, teams in groups.items()
         }
-        return groups, fixtures, qualif, standings, matches_played
+        return groups, fixtures, qualif, round32_pairs, bracket, standings, matches_played
 
-    groups, fixtures, qualif_df, standings_map, matches_played = get_group_data(model)
+    groups, fixtures, qualif_df, round32_pairs, bracket, standings_map, matches_played = get_group_data(model)
 
     st.markdown("#### 🗂️ Classement des groupes")
     st.caption(
@@ -293,39 +302,37 @@ with tab_groupes:
 
     st.markdown("---")
 
-    st.markdown("#### 🏆 Tableau à élimination directe — pronostic du modèle")
+    st.markdown("#### 🏆 Tableau à élimination directe — Monte Carlo (3000 simulations)")
     st.caption(
-        "Qualifiés des 32èmes projetés à partir du classement actuel de chaque groupe "
-        "(1er/2e réel + meilleurs 3èmes selon leur proba de qualification), puis vainqueur "
-        "le plus probable à chaque tour jusqu'à la finale. C'est un pronostic basé sur "
-        "l'état actuel — pas une certitude, ça évoluera avec les résultats."
+        "32èmes déterminés par l'état actuel des groupes (1er/2e réel + 8 meilleurs 3èmes selon "
+        "leur proba de qualification — affichée sous chaque équipe). À partir de ce tableau fixe "
+        "de 32 équipes, les tours suivants sont simulés 3000 fois ; l'équipe affichée à chaque "
+        "position est celle qui l'occupe le plus souvent, avec sa probabilité. Pas de doublon "
+        "possible : chaque équipe n'appartient qu'à un seul groupe, et chaque tour ne peut être "
+        "atteint que par les équipes du match précédent."
     )
 
-    group_names = list(groups.keys())
-    round32_labels = build_bracket_labels(group_names)
-    round32_pred = predict_round32_qualifiers(round32_labels, standings_map, qualif_df)
-    round32_winners = [most_likely_winner(model, a, b) for a, b in round32_pred]
+    def prob_qualif(team: str) -> float:
+        row = qualif_df[qualif_df["team"] == team]
+        return float(row["prob_qualif"].iloc[0]) if not row.empty else 0.0
 
-    round16_matchups = [(round32_winners[2*i], round32_winners[2*i+1]) for i in range(8)]
-    round16_winners = [most_likely_winner(model, a, b) for a, b in round16_matchups]
+    def pairs(slot_list):
+        return [(slot_list[2*i], slot_list[2*i+1]) for i in range(len(slot_list) // 2)]
 
-    quarts_matchups = [(round16_winners[2*i], round16_winners[2*i+1]) for i in range(4)]
-    quarts_winners = [most_likely_winner(model, a, b) for a, b in quarts_matchups]
+    round32_with_prob = [
+        ((a, prob_qualif(a)), (b, prob_qualif(b))) for a, b in round32_pairs
+    ]
 
-    demi_matchups = [(quarts_winners[2*i], quarts_winners[2*i+1]) for i in range(2)]
-    demi_winners = [most_likely_winner(model, a, b) for a, b in demi_matchups]
-
-    finale_matchup = (demi_winners[0], demi_winners[1])
-    champion = most_likely_winner(model, *finale_matchup)
+    rounds = [
+        round32_with_prob,
+        pairs(bracket["round16"]),
+        pairs(bracket["quarts"]),
+        pairs(bracket["demi"]),
+        pairs(bracket["finale"]),
+    ]
 
     st.caption("📱 Sur mobile, fais glisser le tableau horizontalement pour voir tous les tours.")
-    st.markdown(
-        render_bracket_tree(
-            [round32_pred, round16_matchups, quarts_matchups, demi_matchups, [finale_matchup]],
-            champion,
-        ),
-        unsafe_allow_html=True,
-    )
+    st.markdown(render_bracket_tree(rounds, bracket["champion"]), unsafe_allow_html=True)
 
 # =============================================================================
 # ONGLET BILAN — prédictions vs résultats réels

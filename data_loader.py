@@ -30,6 +30,14 @@ TEAM_ALIASES = {
     "Korea DPR":       "North Korea",
 }
 
+# Coefficient réducteur par compétition : certaines compétitions ne reflètent pas
+# le vrai niveau d'une sélection (joueurs locaux uniquement, équipes diminuées).
+# Tout ce qui n'est pas listé garde un poids de 1.0 (CdM, qualifs, Euro, Copa
+# América, CAN, etc. mobilisent les vrais cadres).
+COMPETITION_WEIGHTS = {
+    "Arab Cup": 0.3,  # réservé aux joueurs évoluant dans le championnat local
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -90,7 +98,8 @@ def load_all(csv_path: str = RESULTS_CSV) -> pd.DataFrame:
 
     df["home_team"] = df["home_team"].map(normalize_team)
     df["away_team"] = df["away_team"].map(normalize_team)
-    df["weight"]    = df["date"].apply(time_weight)
+    competition_weight = df["tournament"].map(lambda t: COMPETITION_WEIGHTS.get(t, 1.0))
+    df["weight"]    = df["date"].apply(time_weight) * competition_weight
     df["stage"]     = df["tournament"]
     df["source"]    = "results_csv"
     df["neutral"]   = df["neutral"].fillna(False).astype(bool)
