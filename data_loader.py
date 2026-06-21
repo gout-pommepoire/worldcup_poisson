@@ -15,8 +15,12 @@ from datetime import datetime
 RESULTS_CSV = "results.csv"
 TODAY = datetime.today()
 
-# Demi-vie de pondération temporelle : 10 ans → w ≈ 0.5
-HALF_LIFE_DAYS = 10 * 365
+# Demi-vie de pondération temporelle : 5 ans → w ≈ 0.5
+# (compromis : se rapproche du classement FIFA sans rendre le palmarès CdM
+# historique totalement insignifiant — testé en bac à sable contre le
+# classement FIFA réel sur les 48 équipes qualifiées, corrélation ~0.51-0.52
+# stable entre 3 et 10 ans, contre 0.69 avec une demi-vie ~1.25 an)
+HALF_LIFE_DAYS = 5 * 365
 
 TEAM_ALIASES = {
     "West Germany":    "Germany",
@@ -28,6 +32,37 @@ TEAM_ALIASES = {
     "IR Iran":         "Iran",
     "Korea Republic":  "South Korea",
     "Korea DPR":       "North Korea",
+}
+
+# Coefficient réducteur par compétition : certaines compétitions ne reflètent pas
+# le vrai niveau d'une sélection. Tout ce qui n'est pas listé garde un poids de 1.0
+# (CdM, qualifs CdM, Euro, qualifs Euro, Copa América, Nations League UEFA/CONCACAF
+# — cadres complets, aucun doute).
+COMPETITION_WEIGHTS = {
+    # Niveau continental sérieux mais joueurs parfois non libérés par les clubs
+    "African Cup of Nations":               0.85,
+    "African Cup of Nations qualification": 0.85,
+    "AFC Asian Cup":                        0.85,
+    "AFC Asian Cup qualification":          0.85,
+    "Gold Cup":                             0.85,
+    "Gold Cup qualification":               0.85,
+
+    # Coupes sous-régionales, souvent avec des équipes B/espoirs selon le contexte
+    "COSAFA Cup":                0.5,
+    "Gulf Cup":                  0.5,
+    "SAFF Cup":                  0.5,
+    "AFF Championship":          0.5,
+    "AFF Championship qualification": 0.5,
+    "CAFA Nations Cup":          0.5,
+
+    # Jeux multisports régionaux / compétitions réservées aux joueurs locaux —
+    # pas représentatifs du vrai niveau d'une sélection
+    "Arab Cup":                  0.3,
+    "Arab Cup qualification":    0.3,
+    "Island Games":               0.3,
+    "Pacific Games":              0.3,
+    "MSG Prime Minister's Cup":   0.3,
+    "Indian Ocean Island Games":  0.3,
 }
 
 
@@ -90,7 +125,8 @@ def load_all(csv_path: str = RESULTS_CSV) -> pd.DataFrame:
 
     df["home_team"] = df["home_team"].map(normalize_team)
     df["away_team"] = df["away_team"].map(normalize_team)
-    df["weight"]    = df["date"].apply(time_weight)
+    competition_weight = df["tournament"].map(lambda t: COMPETITION_WEIGHTS.get(t, 1.0))
+    df["weight"]    = df["date"].apply(time_weight) * competition_weight
     df["stage"]     = df["tournament"]
     df["source"]    = "results_csv"
     df["neutral"]   = df["neutral"].fillna(False).astype(bool)

@@ -13,7 +13,7 @@ On utilise le modèle Dixon-Coles déjà entraîné pour tirer un score aléatoi
 import numpy as np
 import pandas as pd
 import networkx as nx
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 from model import DixonColesModel
 from data_loader import normalize_team
@@ -330,93 +330,72 @@ def qualification_probabilities(model: DixonColesModel, groups: dict[str, list[s
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# Tableau à élimination directe (placeholders tant que les groupes ne sont
-# pas terminés)
-# ---------------------------------------------------------------------------
-
-def build_bracket_labels(group_names: list[str]) -> list[tuple[str, str]]:
-    """Reproduit la structure de build_bracket_32 mais avec des labels génériques
-    (1er/2ème de groupe, meilleur 3ème), utilisable avant la fin de la phase de groupes."""
-    firsts  = {g: f"1er {g}" for g in group_names}
-    seconds = {g: f"2e {g}" for g in group_names}
-    best_thirds = [f"Meilleur 3e #{i+1}" for i in range(8)]
-
-    pairs = []
-    for i in range(8):
-        g_first  = group_names[i % 12]
-        g_second = group_names[(i + 4) % 12]
-        pairs.append((firsts[g_first], seconds[g_second]))
-
-    remaining_firsts = [firsts[g] for g in group_names[8:12]]
-    for i in range(4):
-        pairs.append((remaining_firsts[i], best_thirds[i]))
-
-    remaining_seconds = [seconds[g] for g in group_names[0:4]]
-    for i in range(4):
-        pairs.append((remaining_seconds[i], best_thirds[4 + i] if i + 4 < len(best_thirds) else remaining_seconds[i]))
-
-    return pairs[:16]
-
-
-def resolve_round32_slots(label_pairs: list[tuple[str, str]],
-                           group_standings_map: dict[str, pd.DataFrame],
-                           matches_per_group: dict[str, int]) -> list[tuple[str, str]]:
-    """Remplace un placeholder "1er Groupe X" / "2e Groupe X" par le vrai nom d'équipe
-    si ce groupe a terminé ses 6 matchs (classement définitif)."""
-    def resolve(label: str) -> str:
-        if label.startswith("1er "):
-            g = label[len("1er "):]
-            if matches_per_group.get(g, 0) >= 6:
-                return group_standings_map[g].iloc[0]["team"]
-        elif label.startswith("2e "):
-            g = label[len("2e "):]
-            if matches_per_group.get(g, 0) >= 6:
-                return group_standings_map[g].iloc[1]["team"]
-        return label
-
-    return [(resolve(a), resolve(b)) for a, b in label_pairs]
-
-
-def predict_round32_qualifiers(label_pairs: list[tuple[str, str]],
-                                group_standings_map: dict[str, pd.DataFrame],
-                                qualif_df: pd.DataFrame) -> list[tuple[str, str]]:
+def predicted_round32(standings_map: dict[str, pd.DataFrame], qualif_df: pd.DataFrame) -> list[tuple[str, str]]:
     """
-    Remplace TOUS les placeholders par le pronostic actuel du modèle :
-    - "1er/2e Groupe X" → 1er/2e actuel du classement réel du groupe (même si pas terminé)
-    - "Meilleur 3e #n" → parmi les 3èmes actuels de chaque groupe, les 8 avec la
-      meilleure probabilité de qualification, classés par cette probabilité
+    Tableau des 32èmes déterministe à partir de l'état actuel : 1er/2e réel de
+    chaque groupe (même si pas terminé) + les 8 meilleurs 3èmes selon leur proba
+    de qualification. Comme chaque équipe n'appartient qu'à UN groupe, ce tableau
+    ne peut structurellement pas contenir de doublon.
     """
     thirds = []
-    for g, df in group_standings_map.items():
+    for g, df in standings_map.items():
         if len(df) >= 3:
             team = df.iloc[2]["team"]
-            prob_row = qualif_df[(qualif_df["group"] == g) & (qualif_df["team"] == team)]
-            prob = float(prob_row["prob_qualif"].iloc[0]) if not prob_row.empty else 0.0
+            row = qualif_df[(qualif_df["group"] == g) & (qualif_df["team"] == team)]
+            prob = float(row["prob_qualif"].iloc[0]) if not row.empty else 0.0
             thirds.append((team, prob))
     thirds.sort(key=lambda x: x[1], reverse=True)
-    best_8_thirds = [t for t, _ in thirds[:8]]
+    best_8 = [t for t, _ in thirds[:8]]
 
-    def resolve(label: str) -> str:
-        if label.startswith("1er "):
-            g = label[len("1er "):]
-            return group_standings_map[g].iloc[0]["team"]
-        if label.startswith("2e "):
-            g = label[len("2e "):]
-            return group_standings_map[g].iloc[1]["team"]
-        if label.startswith("Meilleur 3e #"):
-            i = int(label.split("#")[1]) - 1
-            return best_8_thirds[i] if i < len(best_8_thirds) else label
-        return label
-
-    return [(resolve(a), resolve(b)) for a, b in label_pairs]
+    return build_bracket_32(standings_map, best_8)
 
 
-def most_likely_winner(model: DixonColesModel, team_a: str, team_b: str) -> str:
-    """Pronostic déterministe du vainqueur d'un match à élimination directe
-    (terrain neutre) : l'équipe avec la plus forte probabilité de victoire."""
-    result = model.predict(team_a, team_b, neutral=True)
-    return team_a if result["prob_home_win"] >= result["prob_away_win"] else team_b
+def knockout_monte_carlo(model: DixonColesModel, round32_pairs: list[tuple[str, str]],
+                          n_sims: int = 3000, seed: int = 42) -> dict:
+    """
+    Monte Carlo sur la seule phase à élimination directe, à partir d'un tableau
+    de 32èmes FIXE (32 équipes réelles distinctes). Comme l'ensemble des équipes
+    pouvant occuper chaque position d'un tour est un sous-ensemble disjoint des
+    32 équipes de départ, aucun doublon n'est possible à aucun tour.
+    """
+    _MATRIX_CACHE.clear()
+    rng = np.random.default_rng(seed)
+
+    slot_counts = {
+        "round16": [Counter() for _ in range(16)],
+        "quarts":  [Counter() for _ in range(8)],
+        "demi":    [Counter() for _ in range(4)],
+        "finale":  [Counter() for _ in range(2)],
+        "champion": Counter(),
+    }
+
+    for _ in range(n_sims):
+        round32_winners = simulate_knockout_round(model, round32_pairs, rng)
+        for i, t in enumerate(round32_winners):
+            slot_counts["round16"][i][t] += 1
+
+        round16_winners = simulate_knockout_round(model, pair_up(round32_winners), rng)
+        for i, t in enumerate(round16_winners):
+            slot_counts["quarts"][i][t] += 1
+
+        quarts_winners = simulate_knockout_round(model, pair_up(round16_winners), rng)
+        for i, t in enumerate(quarts_winners):
+            slot_counts["demi"][i][t] += 1
+
+        demi_winners = simulate_knockout_round(model, pair_up(quarts_winners), rng)
+        for i, t in enumerate(demi_winners):
+            slot_counts["finale"][i][t] += 1
+
+        champion = simulate_knockout_round(model, pair_up(demi_winners), rng)[0]
+        slot_counts["champion"][champion] += 1
+
+    def top(counter: Counter) -> tuple[str, float]:
+        team, count = counter.most_common(1)[0]
+        return team, count / n_sims
+
+    bracket = {k: [top(c) for c in slot_counts[k]] for k in ("round16", "quarts", "demi", "finale")}
+    bracket["champion"] = top(slot_counts["champion"])
+    return bracket
 
 
 def run_monte_carlo(model: DixonColesModel, groups: dict[str, list[str]],

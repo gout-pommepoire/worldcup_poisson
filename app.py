@@ -20,75 +20,96 @@ from model import DixonColesModel
 from backtest import summary_stats
 from tournament import (
     build_groups, load_wc2026_fixtures, group_standings,
-    qualification_probabilities, build_bracket_labels,
-    predict_round32_qualifiers, most_likely_winner,
+    qualification_probabilities, predicted_round32, knockout_monte_carlo,
 )
 
 
-def render_bracket_round(matchups: list[tuple[str, str]]) -> str:
-    """Cartes responsive (grid auto-fit) pour afficher un tour du tableau."""
-    cards = "".join(
-        f'''<div class="bracket-card">
-              <div class="bracket-match-label">Match {i+1}</div>
-              <div class="bracket-team">{a}</div>
-              <div class="bracket-vs">vs</div>
-              <div class="bracket-team">{b}</div>
-            </div>'''
-        for i, (a, b) in enumerate(matchups)
+def render_bracket_tree(rounds: list[list[tuple[tuple[str, float], tuple[str, float]]]],
+                         champion: tuple[str, float]) -> str:
+    """
+    Tableau à élimination directe complet en arbre, à la manière des tableaux
+    CdM classiques (32èmes → finale), avec lignes de connexion calculées en
+    pixels (et non en CSS approximatif) pour un alignement parfait.
+
+    rounds : liste de tours, chacun étant une liste de matchs ((team_a, prob_a), (team_b, prob_b)),
+             du premier tour (32èmes, 16 matchs) à la finale (1 match). Les probabilités
+             viennent du Monte Carlo (fréquence d'apparition de l'équipe à cette position).
+    """
+    U = 54            # unité verticale = hauteur de slot d'un match du 1er tour
+    BOX_W = 150
+    BOX_H = 46
+    COL_GAP = 56
+    n_first_round = len(rounds[0]) * 2   # nb d'équipes au 1er tour
+
+    def center_y(k: int, i: int) -> float:
+        """Centre vertical (en U) du match i du tour k (k=0 → 1er tour)."""
+        return (i + 0.5) * (2 ** k) * U
+
+    total_height = n_first_round * U
+    total_width = (len(rounds) + 1) * (BOX_W + COL_GAP)
+
+    elems = []
+
+    def add_box(x, y, team_a, team_b, gold=False):
+        bg = "linear-gradient(135deg,#FFD700,#B8860B)" if gold else "linear-gradient(135deg,#1a1a2e,#26215C)"
+        color = "#1a1a2e" if gold else "#fff"
+        style = (
+            f"position:absolute; left:{x}px; top:{y - BOX_H/2}px; width:{BOX_W}px; height:{BOX_H}px; "
+            f"background:{bg}; border-radius:7px; color:{color}; font-size:12px; font-weight:600; "
+            f"display:flex; flex-direction:column; justify-content:center; padding:0 8px; "
+            f"box-shadow:0 2px 5px rgba(0,0,0,0.3); overflow:hidden; white-space:nowrap; "
+            f"text-overflow:ellipsis; line-height:1.4;"
+        )
+        (a, pa), (b, pb) = team_a, team_b
+        elems.append(
+            f'<div style="{style}">'
+            f'<div>{a} <span style="opacity:0.55; font-size:9.5px; font-weight:400;">{pa:.0%}</span></div>'
+            f'<div style="opacity:0.45; font-size:8.5px; font-weight:400;">vs</div>'
+            f'<div>{b} <span style="opacity:0.55; font-size:9.5px; font-weight:400;">{pb:.0%}</span></div>'
+            f'</div>'
+        )
+
+    def add_hline(x, y, w):
+        elems.append(f'<div style="position:absolute; left:{x}px; top:{y-1}px; width:{w}px; height:2px; background:#9994d9;"></div>')
+
+    def add_vline(x, y0, y1):
+        elems.append(f'<div style="position:absolute; left:{x-1}px; top:{min(y0,y1)}px; width:2px; height:{abs(y1-y0)}px; background:#9994d9;"></div>')
+
+    for k, matches in enumerate(rounds):
+        x = k * (BOX_W + COL_GAP)
+        for i, (a, b) in enumerate(matches):
+            y = center_y(k, i)
+            add_box(x, y, a, b)
+        if k < len(rounds) - 1:
+            for p in range(len(matches) // 2):
+                y0, y1 = center_y(k, 2*p), center_y(k, 2*p + 1)
+                mid_x = x + BOX_W + COL_GAP / 2
+                add_hline(x + BOX_W, y0, COL_GAP / 2)
+                add_hline(x + BOX_W, y1, COL_GAP / 2)
+                add_vline(mid_x, y0, y1)
+                add_hline(mid_x, center_y(k + 1, p), COL_GAP / 2)
+
+    # Champion
+    last_k = len(rounds) - 1
+    x_final = last_k * (BOX_W + COL_GAP)
+    y_final = center_y(last_k, 0)
+    x_champ = x_final + BOX_W + COL_GAP
+    add_hline(x_final + BOX_W, y_final, COL_GAP)
+    champ_style = (
+        f"position:absolute; left:{x_champ}px; top:{y_final - BOX_H/2 - 4}px; width:{BOX_W}px; height:{BOX_H+8}px; "
+        f"background:linear-gradient(135deg,#FFD700,#B8860B); border-radius:8px; color:#1a1a2e; "
+        f"font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center; "
+        f"box-shadow:0 3px 8px rgba(0,0,0,0.35); text-align:center; padding:0 6px;"
     )
-    return f'''
-    <style>
-    .bracket-grid {{
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 10px;
-        margin-bottom: 6px;
-    }}
-    .bracket-card {{
-        background: linear-gradient(135deg, #1a1a2e, #26215C);
-        border-radius: 10px;
-        padding: 10px 14px;
-        color: #fff;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    }}
-    .bracket-match-label {{
-        font-size: 10px;
-        opacity: 0.55;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 4px;
-    }}
-    .bracket-team {{
-        font-size: 14.5px;
-        font-weight: 600;
-        padding: 2px 0;
-    }}
-    .bracket-vs {{
-        font-size: 10px;
-        opacity: 0.45;
-        text-align: center;
-    }}
-    </style>
-    <div class="bracket-grid">{cards}</div>
-    '''
+    champ_team, champ_prob = champion
+    elems.append(f'<div style="{champ_style}">🏆 {champ_team} ({champ_prob:.0%})</div>')
 
-
-def render_champion_card(team: str) -> str:
-    return f'''
-    <style>
-    .champion-card {{
-        background: linear-gradient(135deg, #FFD700, #B8860B);
-        border-radius: 12px;
-        padding: 18px;
-        text-align: center;
-        color: #1a1a2e;
-        font-size: 22px;
-        font-weight: 800;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
-    }}
-    </style>
-    <div class="champion-card">🏆 {team}</div>
-    '''
+    inner_html = "".join(elems)
+    outer_style = f"position:relative; width:{total_width}px; height:{total_height}px; min-width:{total_width}px;"
+    return (
+        f'<div style="overflow-x:auto; width:100%; padding-bottom:10px;">'
+        f'<div style="{outer_style}">{inner_html}</div></div>'
+    )
 
 HOST_NATIONS = {"USA", "Mexico", "Canada"}
 
@@ -233,21 +254,25 @@ with tab_match:
 
 with tab_groupes:
 
-    @st.cache_resource(show_spinner="Calcul des classements et probabilités de qualification…")
+    @st.cache_resource(show_spinner="Simulation Monte Carlo (groupes + tableau complet)…")
     def get_group_data(_model):
         groups = build_groups()
         fixtures = load_wc2026_fixtures()
-        qualif = qualification_probabilities(_model, groups, fixtures, n_sims=3000, seed=42)
         standings = {g: group_standings(teams, fixtures) for g, teams in groups.items()}
+        qualif = qualification_probabilities(_model, groups, fixtures, n_sims=3000, seed=42)
+        # 32èmes déterministes (1er/2e réel + meilleurs 3èmes) → jamais de doublon possible
+        round32_pairs = predicted_round32(standings, qualif)
+        # Monte Carlo seulement sur la phase à élimination (32 équipes fixes) → pas de doublon non plus
+        bracket = knockout_monte_carlo(_model, round32_pairs, n_sims=3000, seed=42)
         matches_played = {
             g: int(fixtures[
                 fixtures["home_team"].isin(teams) & fixtures["away_team"].isin(teams) & fixtures["played"]
             ].shape[0])
             for g, teams in groups.items()
         }
-        return groups, fixtures, qualif, standings, matches_played
+        return groups, fixtures, qualif, round32_pairs, bracket, standings, matches_played
 
-    groups, fixtures, qualif_df, standings_map, matches_played = get_group_data(model)
+    groups, fixtures, qualif_df, round32_pairs, bracket, standings_map, matches_played = get_group_data(model)
 
     st.markdown("#### 🗂️ Classement des groupes")
     st.caption(
@@ -277,46 +302,37 @@ with tab_groupes:
 
     st.markdown("---")
 
-    st.markdown("#### 🏆 Tableau à élimination directe — pronostic du modèle")
+    st.markdown("#### 🏆 Tableau à élimination directe — Monte Carlo (3000 simulations)")
     st.caption(
-        "Qualifiés des 32èmes projetés à partir du classement actuel de chaque groupe "
-        "(1er/2e réel + meilleurs 3èmes selon leur proba de qualification), puis vainqueur "
-        "le plus probable à chaque tour jusqu'à la finale. C'est un pronostic basé sur "
-        "l'état actuel — pas une certitude, ça évoluera avec les résultats."
+        "32èmes déterminés par l'état actuel des groupes (1er/2e réel + 8 meilleurs 3èmes selon "
+        "leur proba de qualification — affichée sous chaque équipe). À partir de ce tableau fixe "
+        "de 32 équipes, les tours suivants sont simulés 3000 fois ; l'équipe affichée à chaque "
+        "position est celle qui l'occupe le plus souvent, avec sa probabilité. Pas de doublon "
+        "possible : chaque équipe n'appartient qu'à un seul groupe, et chaque tour ne peut être "
+        "atteint que par les équipes du match précédent."
     )
 
-    group_names = list(groups.keys())
-    round32_labels = build_bracket_labels(group_names)
-    round32_pred = predict_round32_qualifiers(round32_labels, standings_map, qualif_df)
-    round32_winners = [most_likely_winner(model, a, b) for a, b in round32_pred]
+    def prob_qualif(team: str) -> float:
+        row = qualif_df[qualif_df["team"] == team]
+        return float(row["prob_qualif"].iloc[0]) if not row.empty else 0.0
 
-    round16_matchups = [(round32_winners[2*i], round32_winners[2*i+1]) for i in range(8)]
-    round16_winners = [most_likely_winner(model, a, b) for a, b in round16_matchups]
+    def pairs(slot_list):
+        return [(slot_list[2*i], slot_list[2*i+1]) for i in range(len(slot_list) // 2)]
 
-    quarts_matchups = [(round16_winners[2*i], round16_winners[2*i+1]) for i in range(4)]
-    quarts_winners = [most_likely_winner(model, a, b) for a, b in quarts_matchups]
+    round32_with_prob = [
+        ((a, prob_qualif(a)), (b, prob_qualif(b))) for a, b in round32_pairs
+    ]
 
-    demi_matchups = [(quarts_winners[2*i], quarts_winners[2*i+1]) for i in range(2)]
-    demi_winners = [most_likely_winner(model, a, b) for a, b in demi_matchups]
+    rounds = [
+        round32_with_prob,
+        pairs(bracket["round16"]),
+        pairs(bracket["quarts"]),
+        pairs(bracket["demi"]),
+        pairs(bracket["finale"]),
+    ]
 
-    finale_matchup = (demi_winners[0], demi_winners[1])
-    champion = most_likely_winner(model, *finale_matchup)
-
-    with st.expander("⚔️ 32èmes de finale (16 matchs)", expanded=True):
-        st.markdown(render_bracket_round(round32_pred), unsafe_allow_html=True)
-
-    with st.expander("⚔️ 16èmes de finale (8 matchs)"):
-        st.markdown(render_bracket_round(round16_matchups), unsafe_allow_html=True)
-
-    with st.expander("⚔️ Quarts de finale (4 matchs)"):
-        st.markdown(render_bracket_round(quarts_matchups), unsafe_allow_html=True)
-
-    with st.expander("⚔️ Demi-finales (2 matchs)"):
-        st.markdown(render_bracket_round(demi_matchups), unsafe_allow_html=True)
-
-    with st.expander("🏆 Finale", expanded=True):
-        st.markdown(render_bracket_round([finale_matchup]), unsafe_allow_html=True)
-        st.markdown(render_champion_card(champion), unsafe_allow_html=True)
+    st.caption("📱 Sur mobile, fais glisser le tableau horizontalement pour voir tous les tours.")
+    st.markdown(render_bracket_tree(rounds, bracket["champion"]), unsafe_allow_html=True)
 
 # =============================================================================
 # ONGLET BILAN — prédictions vs résultats réels
