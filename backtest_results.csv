@@ -1,34 +1,40 @@
 date,home_team,away_team,score_reel,score_predit,xG_predit_dom,xG_predit_ext,xG_reel_dom,xG_reel_ext,has_real_xg,buts_reels_dom,buts_reels_ext,erreur_xG,prob_home_win,prob_draw,prob_away_win,resultat_predit,resultat_reel,resultat_correct,score_exact,xG_coherent,verdict
-11/06,South Korea,Czech Republic,2-1,1-0,1.69,0.68,2.3,0.87,True,2,1,0.8,0.6161,0.2371,0.1468,Dom.,Dom.,True,False,True,🟢 Bon résultat
-11/06,Mexico,South Africa,2-0,2-0,2.07,0.47,1.46,0.07,True,2,0,1.01,0.7518,0.1764,0.0718,Dom.,Dom.,True,True,True,✅ Score exact
-12/06,USA,Paraguay,4-1,1-0,1.73,0.7,1.42,0.54,True,4,1,0.47,0.617,0.2382,0.1448,Dom.,Dom.,True,False,True,🟢 Bon résultat
-12/06,Canada,Bosnia and Herzegovina,1-1,3-0,3.67,0.54,1.23,0.96,True,1,1,2.86,0.9132,0.0624,0.0244,Dom.,Nul,False,False,False,🔴 Raté
-13/06,Qatar,Switzerland,1-1,1-1,1.24,2.08,0.6,3.2,True,1,1,1.76,0.2177,0.2186,0.5638,Ext.,Nul,True,True,False,✅ Score exact
-13/06,Brazil,Morocco,1-1,0-0,0.78,0.95,1.26,1.37,True,1,1,0.9,0.2799,0.3419,0.3782,Ext.,Nul,True,False,True,🟢 Bon résultat
-13/06,Haiti,Scotland,0-1,1-1,1.73,1.14,1.05,1.05,True,0,1,0.77,0.5124,0.2388,0.2489,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-13/06,Australia,Turkey,2-0,1-0,1.9,0.87,1.18,1.36,True,2,0,1.21,0.6141,0.2186,0.1672,Dom.,Dom.,True,False,True,🟢 Bon résultat
-14/06,Germany,Curaçao,7-1,1-1,1.82,1.18,4.22,0.41,True,7,1,3.17,0.5245,0.2309,0.2446,Dom.,Dom.,True,False,False,🟢 Bon résultat
-14/06,Ivory Coast,Ecuador,1-0,0-0,0.81,0.49,1.52,1.01,True,1,0,1.23,0.4021,0.3909,0.2069,Dom.,Dom.,True,False,True,🟢 Bon résultat
-14/06,Netherlands,Japan,2-2,1-1,0.99,1.52,0.78,0.59,True,2,2,1.14,0.2412,0.2721,0.4867,Ext.,Nul,True,False,True,🟢 Bon résultat
-14/06,Sweden,Tunisia,5-1,0-1,0.74,1.49,1.33,0.28,True,5,1,1.8,0.1784,0.2781,0.5435,Ext.,Dom.,False,False,False,🔴 Raté
-15/06,Saudi Arabia,Uruguay,1-1,0-0,0.68,0.69,0.66,1.72,True,1,1,1.05,0.296,0.4004,0.3036,Nul,Nul,True,False,True,🟢 Bon résultat
-15/06,Spain,Cape Verde,0-0,2-0,2.01,0.54,2.1,0.2,True,0,0,0.43,0.7215,0.1894,0.0891,Dom.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-15/06,Belgium,Egypt,1-1,1-0,1.58,0.95,1.35,1.08,True,1,1,0.36,0.5249,0.244,0.2311,Dom.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-15/06,Iran,New Zealand,2-2,1-1,1.04,1.23,1.5,1.24,True,2,2,0.47,0.3046,0.2984,0.397,Ext.,Nul,True,False,True,🟢 Bon résultat
-16/06,France,Senegal,3-1,0-0,0.92,0.99,1.79,0.53,True,3,1,1.33,0.3081,0.3484,0.3435,Nul,Dom.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-16/06,Iraq,Norway,1-4,1-1,1.06,1.2,0.8,2.52,True,1,4,1.58,0.3196,0.2936,0.3868,Ext.,Ext.,True,False,False,🟢 Bon résultat
-16/06,Argentina,Algeria,3-0,1-1,1.3,1.23,1.26,0.32,True,3,0,0.95,0.3859,0.2596,0.3544,Dom.,Dom.,True,False,True,🟢 Bon résultat
-16/06,Austria,Jordan,3-1,1-1,0.95,1.29,1.66,0.33,True,3,1,1.67,0.2629,0.3018,0.4353,Ext.,Dom.,False,False,False,🔴 Raté
-17/06,Ghana,Panama,1-0,0-1,0.9,1.44,1.25,0.73,True,1,0,1.06,0.2323,0.2724,0.4953,Ext.,Dom.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-17/06,Portugal,DR Congo,1-1,0-0,0.93,0.6,0.65,0.87,True,1,1,0.55,0.4133,0.3614,0.2253,Dom.,Nul,True,False,True,🟢 Bon résultat
-17/06,Uzbekistan,Colombia,1-3,1-0,1.16,0.6,1.16,1.61,True,1,3,1.01,0.481,0.3384,0.1806,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-17/06,England,Croatia,4-2,1-0,1.38,0.55,3.2,0.7,True,4,2,1.97,0.5717,0.2816,0.1468,Dom.,Dom.,True,False,False,🟢 Bon résultat
-18/06,Switzerland,Bosnia and Herzegovina,4-1,2-0,1.96,0.69,2.06,0.23,True,4,1,0.56,0.6689,0.2132,0.1179,Dom.,Dom.,True,False,True,🟢 Bon résultat
-18/06,Canada,Qatar,6-0,2-0,2.99,0.95,4.6,0.22,True,6,0,2.34,0.7794,0.1354,0.0852,Dom.,Dom.,True,False,False,🟢 Bon résultat
-18/06,Czech Republic,South Africa,1-1,1-1,1.06,1.1,1.02,1.35,True,1,1,0.29,0.3362,0.3056,0.3582,Ext.,Nul,True,True,True,✅ Score exact
-18/06,Mexico,South Korea,1-0,0-0,0.99,0.8,0.53,0.91,True,1,0,0.57,0.3827,0.3348,0.2825,Dom.,Dom.,True,False,True,🟢 Bon résultat
-19/06,USA,Australia,2-0,0-0,0.86,0.9,1.08,0.35,True,2,0,0.77,0.3106,0.3533,0.3361,Nul,Dom.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-19/06,Turkey,Paraguay,0-1,1-0,1.59,0.8,2.17,0.32,True,0,1,1.06,0.5567,0.2579,0.1854,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
-19/06,Scotland,Morocco,0-1,0-1,0.66,1.39,0.51,0.99,True,0,1,0.55,0.1672,0.2992,0.5336,Ext.,Ext.,True,True,True,✅ Score exact
-19/06,Brazil,Haiti,3-0,1-1,1.37,1.07,1.75,0.23,True,3,0,1.22,0.4397,0.2652,0.2952,Dom.,Dom.,True,False,True,🟢 Bon résultat
-20/06,Netherlands,Sweden,5-1,2-0,2.18,0.97,2.47,0.99,True,5,1,0.31,0.6442,0.2022,0.1536,Dom.,Dom.,True,False,True,🟢 Bon résultat
+11/06,Mexico,South Africa,2-0,1-0,1.48,0.65,1.46,0.07,True,2,0,0.6,0.5672,0.2777,0.1551,Dom.,Dom.,True,False,True,🟢 Bon résultat
+11/06,South Korea,Czech Republic,2-1,1-0,1.58,0.91,2.3,0.87,True,2,1,0.76,0.5266,0.2608,0.2125,Dom.,Dom.,True,False,True,🟢 Bon résultat
+12/06,Canada,Bosnia and Herzegovina,1-1,2-0,2.96,0.66,1.23,0.96,True,1,1,2.03,0.8315,0.1151,0.0535,Dom.,Nul,False,False,False,🔴 Raté
+12/06,USA,Paraguay,4-1,1-0,1.63,0.54,1.42,0.54,True,4,1,0.21,0.6359,0.2484,0.1157,Dom.,Dom.,True,False,True,🟢 Bon résultat
+13/06,Australia,Turkey,2-0,1-0,1.64,0.69,1.18,1.36,True,2,0,1.13,0.5988,0.2494,0.1518,Dom.,Dom.,True,False,True,🟢 Bon résultat
+13/06,Haiti,Scotland,0-1,1-1,1.91,1.22,1.05,1.05,True,0,1,1.03,0.5264,0.2415,0.2321,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+13/06,Qatar,Switzerland,1-1,1-1,1.23,2.03,0.6,3.2,True,1,1,1.8,0.2261,0.2195,0.5544,Ext.,Nul,True,True,False,✅ Score exact
+13/06,Brazil,Morocco,1-1,0-1,0.27,1.05,1.26,1.37,True,1,1,1.31,0.0945,0.3474,0.5581,Ext.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+14/06,Germany,Curaçao,7-1,1-1,1.69,1.13,4.22,0.41,True,7,1,3.25,0.501,0.2486,0.2503,Dom.,Dom.,True,False,False,🟢 Bon résultat
+14/06,Ivory Coast,Ecuador,1-0,0-0,0.84,0.43,1.52,1.01,True,1,0,1.26,0.4236,0.4008,0.1756,Dom.,Dom.,True,False,True,🟢 Bon résultat
+14/06,Netherlands,Japan,2-2,0-1,0.92,1.58,0.78,0.59,True,2,2,1.13,0.217,0.2547,0.5283,Ext.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+14/06,Sweden,Tunisia,5-1,0-1,0.67,1.49,1.33,0.28,True,5,1,1.87,0.1658,0.2661,0.568,Ext.,Dom.,False,False,False,🔴 Raté
+15/06,Belgium,Egypt,1-1,1-0,1.19,0.79,1.35,1.08,True,1,1,0.45,0.4558,0.2981,0.2461,Dom.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+15/06,Iran,New Zealand,2-2,1-1,1.04,1.35,1.5,1.24,True,2,2,0.57,0.2867,0.2743,0.439,Ext.,Nul,True,False,True,🟢 Bon résultat
+15/06,Spain,Cape Verde,0-0,2-0,2.14,0.62,2.1,0.2,True,0,0,0.46,0.7213,0.1882,0.0905,Dom.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+15/06,Saudi Arabia,Uruguay,1-1,0-0,0.72,0.78,0.66,1.72,True,1,1,1.0,0.2941,0.3797,0.3262,Nul,Nul,True,False,True,🟢 Bon résultat
+16/06,Austria,Jordan,3-1,1-1,1.21,1.27,1.66,0.33,True,3,1,1.39,0.3479,0.2741,0.378,Ext.,Dom.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+16/06,Argentina,Algeria,3-0,1-0,1.28,0.68,1.26,0.32,True,3,0,0.38,0.5071,0.297,0.1959,Dom.,Dom.,True,False,True,🟢 Bon résultat
+16/06,Iraq,Norway,1-4,0-1,0.92,1.32,0.8,2.52,True,1,4,1.32,0.258,0.2885,0.4535,Ext.,Ext.,True,False,True,🟢 Bon résultat
+16/06,France,Senegal,3-1,1-0,1.09,0.9,1.79,0.53,True,3,1,1.07,0.3923,0.3117,0.296,Dom.,Dom.,True,False,True,🟢 Bon résultat
+17/06,Portugal,DR Congo,1-1,1-0,1.46,0.7,0.65,0.87,True,1,1,0.98,0.5512,0.2719,0.1769,Dom.,Nul,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+17/06,Uzbekistan,Colombia,1-3,0-0,1.06,0.74,1.16,1.61,True,1,3,0.97,0.4199,0.3342,0.2459,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+17/06,England,Croatia,4-2,1-1,1.52,1.23,3.2,0.7,True,4,2,2.21,0.4369,0.2587,0.3043,Dom.,Dom.,True,False,False,🟢 Bon résultat
+17/06,Ghana,Panama,1-0,1-1,0.99,1.51,1.25,0.73,True,1,0,1.04,0.2464,0.2616,0.492,Ext.,Dom.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+18/06,Czech Republic,South Africa,1-1,1-1,1.19,1.28,1.02,1.35,True,1,1,0.24,0.3408,0.2742,0.385,Ext.,Nul,True,True,True,✅ Score exact
+18/06,Mexico,South Korea,1-0,1-1,1.41,1.07,0.53,0.91,True,1,0,1.04,0.4311,0.2989,0.27,Dom.,Dom.,True,False,True,🟢 Bon résultat
+18/06,Switzerland,Bosnia and Herzegovina,4-1,1-0,1.9,0.83,2.06,0.23,True,4,1,0.76,0.6275,0.2154,0.1571,Dom.,Dom.,True,False,True,🟢 Bon résultat
+18/06,Canada,Qatar,6-0,2-0,2.81,0.89,4.6,0.22,True,6,0,2.46,0.7665,0.146,0.0875,Dom.,Dom.,True,False,False,🟢 Bon résultat
+19/06,Turkey,Paraguay,0-1,1-0,1.83,0.92,2.17,0.32,True,0,1,0.94,0.5934,0.2139,0.1928,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+19/06,USA,Australia,2-0,1-1,1.03,1.19,1.08,0.35,True,2,0,0.89,0.3129,0.2954,0.3917,Ext.,Dom.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+19/06,Scotland,Morocco,0-1,0-1,0.17,1.5,0.51,0.99,True,0,1,0.85,0.0371,0.2438,0.7191,Ext.,Ext.,True,True,True,✅ Score exact
+19/06,Brazil,Haiti,3-0,1-1,1.4,1.05,1.75,0.23,True,3,0,1.17,0.448,0.2739,0.2781,Dom.,Dom.,True,False,True,🟢 Bon résultat
+20/06,Ecuador,Curaçao,0-0,0-0,0.84,0.75,2.84,0.5,True,0,0,2.25,0.3459,0.3571,0.297,Nul,Nul,True,True,False,✅ Score exact
+20/06,Netherlands,Sweden,5-1,2-1,2.29,1.01,2.47,0.99,True,5,1,0.2,0.6565,0.1917,0.1518,Dom.,Dom.,True,False,True,🟢 Bon résultat
+20/06,Tunisia,Japan,0-4,0-1,0.7,1.39,0.05,2.13,True,0,4,1.39,0.1826,0.2876,0.5299,Ext.,Ext.,True,False,True,🟢 Bon résultat
+21/06,Spain,Saudi Arabia,4-0,1-0,1.35,0.64,2.3,0.14,True,4,0,1.45,0.537,0.2919,0.1711,Dom.,Dom.,True,False,True,🟢 Bon résultat
+21/06,Belgium,Iran,0-0,1-1,1.07,1.08,1.79,0.62,True,0,0,1.18,0.3493,0.2991,0.3516,Ext.,Nul,True,False,True,🟢 Bon résultat
+21/06,New Zealand,Egypt,1-3,1-0,1.19,0.85,1.24,1.87,True,1,3,1.07,0.4285,0.3151,0.2564,Dom.,Ext.,False,False,True,"🟡 Résultat raté, xG réel cohérent"
+21/06,Uruguay,Cape Verde,2-2,0-0,0.88,0.59,2.32,0.88,True,2,2,1.73,0.4005,0.3708,0.2287,Dom.,Nul,True,False,False,🟢 Bon résultat
