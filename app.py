@@ -17,11 +17,72 @@ from itertools import product
 
 from data_loader import load_all
 from model import DixonColesModel
-from backtest import summary_stats
+from backtest import summary_stats, load_xg_reel
 from tournament import (
     build_groups, load_wc2026_fixtures, group_standings,
     qualification_probabilities, predicted_round32, knockout_monte_carlo,
 )
+
+
+def team_form(df: pd.DataFrame, team: str, n: int = 3) -> list[str]:
+    """Résultat (V/N/D) des n derniers matchs joués par l'équipe, toutes compétitions
+    confondues, du plus ancien au plus récent."""
+    matches = df[(df["home_team"] == team) | (df["away_team"] == team)].sort_values("date").tail(n)
+    results = []
+    for _, row in matches.iterrows():
+        is_home = row["home_team"] == team
+        gf = row["home_goals"] if is_home else row["away_goals"]
+        ga = row["away_goals"] if is_home else row["home_goals"]
+        if gf > ga:
+            results.append("V")
+        elif gf < ga:
+            results.append("D")
+        else:
+            results.append("N")
+    return results
+
+
+def render_form_badges(results: list[str]) -> str:
+    colors = {"V": "#2ECC71", "N": "#F1C40F", "D": "#E74C3C"}
+    badges = "".join(
+        f'<span style="display:inline-block; width:22px; height:22px; border-radius:50%; '
+        f'background:{colors[r]}; color:#fff; font-size:11px; font-weight:700; '
+        f'text-align:center; line-height:22px; margin-right:4px;">{r}</span>'
+        for r in results
+    )
+    return badges or '<span style="opacity:0.5; font-size:12px;">Aucun match récent</span>'
+
+
+def team_tournament_stats(team: str, df_all: pd.DataFrame) -> dict:
+    """xG pour/contre depuis le début de la CdM 2026 pour une équipe : utilise le xG
+    réel (Sofascore) quand disponible, sinon les buts marqués/concédés en proxy."""
+    wc = df_all[
+        (df_all["stage"] == "FIFA World Cup") & (df_all["date"].dt.year == 2026)
+        & ((df_all["home_team"] == team) | (df_all["away_team"] == team))
+    ]
+    xg_reel = load_xg_reel()
+
+    xg_for, xg_against, n = 0.0, 0.0, 0
+    for _, row in wc.iterrows():
+        is_home = row["home_team"] == team
+        match = xg_reel[
+            (xg_reel["date"] == row["date"]) &
+            (xg_reel["home_team"] == row["home_team"]) &
+            (xg_reel["away_team"] == row["away_team"])
+        ]
+        if not match.empty:
+            xg_h, xg_a = float(match.iloc[0]["xg_home_reel"]), float(match.iloc[0]["xg_away_reel"])
+        else:
+            xg_h, xg_a = row["home_goals"], row["away_goals"]
+        xg_for += xg_h if is_home else xg_a
+        xg_against += xg_a if is_home else xg_h
+        n += 1
+
+    return {
+        "matches": n,
+        "xg_for": xg_for / n if n else 0.0,
+        "xg_against": xg_against / n if n else 0.0,
+    }
 
 
 def render_bracket_tree(rounds: list[list[tuple[tuple[str, float], tuple[str, float]]]],
@@ -247,6 +308,28 @@ with tab_match:
         rank_h = strengths[strengths["team"] == home].index[0] + 1
         rank_a = strengths[strengths["team"] == away].index[0] + 1
         st.caption(f"Classement modèle : {home} #{rank_h} · {away} #{rank_a}")
+
+        st.markdown("**Forme (3 derniers matchs)**")
+        col_form_h, col_form_a = st.columns(2)
+        col_form_h.caption(home)
+        col_form_h.markdown(render_form_badges(team_form(df, home)), unsafe_allow_html=True)
+        col_form_a.caption(away)
+        col_form_a.markdown(render_form_badges(team_form(df, away)), unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("#### 📊 Stats depuis le début de la CdM 2026")
+    stats_h = team_tournament_stats(home, df)
+    stats_a = team_tournament_stats(away, df)
+    tourney_stats_df = pd.DataFrame({
+        "": ["Matchs joués", "xG pour (moy./match)", "xG concédé (moy./match)"],
+        home: [stats_h["matches"], f"{stats_h['xg_for']:.2f}", f"{stats_h['xg_against']:.2f}"],
+        away: [stats_a["matches"], f"{stats_a['xg_for']:.2f}", f"{stats_a['xg_against']:.2f}"],
+    })
+    st.dataframe(tourney_stats_df, hide_index=True, use_container_width=True)
+    st.caption(
+        "xG réel (Sofascore) quand disponible, sinon buts marqués/concédés en proxy. "
+        "Possession et % de passes réussies : pas encore disponibles, voir note ci-dessous."
+    )
 
 # =============================================================================
 # ONGLET GROUPES & TABLEAU
