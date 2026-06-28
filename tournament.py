@@ -325,15 +325,45 @@ def qualification_probabilities(model: DixonColesModel, groups: dict[str, list[s
     return pd.DataFrame(rows)
 
 
+# Tableau des 32èmes officiellement confirmé une fois la phase de groupes
+# terminée : la table d'assignation FIFA des 8 meilleurs 3èmes aux 8 places
+# "1er vs 3e" dépend de la combinaison exacte des groupes qualifiés (table à
+# ~495 combinaisons), trop complexe à reproduire de façon générique. Une fois
+# les groupes terminés, c'est un fait connu qu'on fixe directement ici plutôt
+# que de risquer une mauvaise affectation.
+ROUND_OF_32_CONFIRMED: list[tuple[str, str]] = [
+    ("South Africa", "Canada"),
+    ("Germany", "Paraguay"),
+    ("Netherlands", "Morocco"),
+    ("Brazil", "Japan"),
+    ("France", "Sweden"),
+    ("Ivory Coast", "Norway"),
+    ("Mexico", "Ecuador"),
+    ("England", "DR Congo"),
+    ("USA", "Bosnia and Herzegovina"),
+    ("Belgium", "Senegal"),
+    ("Portugal", "Croatia"),
+    ("Spain", "Austria"),
+    ("Switzerland", "Algeria"),
+    ("Argentina", "Cape Verde"),
+    ("Colombia", "Ghana"),
+    ("Australia", "Egypt"),
+]
+
+
 def predicted_round32(standings_map: dict[str, pd.DataFrame], qualif_df: pd.DataFrame) -> list[tuple[str, str]]:
     """
-    Tableau des 32èmes déterministe à partir de l'état actuel : 1er/2e réel de
-    chaque groupe (même si pas terminé) + les 8 meilleurs 3èmes selon leur proba
-    de qualification, assignés aux 8 emplacements officiels (THIRD_PLACE_SLOT_GROUPS)
-    en évitant qu'une équipe affronte le 1er de SON PROPRE groupe. Comme chaque
-    équipe n'appartient qu'à UN groupe, ce tableau ne peut structurellement pas
-    contenir de doublon.
+    Tableau des 32èmes. Si la phase de groupes est terminée (tous les groupes
+    ont joué leurs 6 matchs), retourne le tableau officiel confirmé
+    (ROUND_OF_32_CONFIRMED). Sinon, estime un tableau à partir de l'état actuel :
+    1er/2e réel de chaque groupe + les 8 meilleurs 3èmes selon leur proba de
+    qualification — approximation, la vraie table d'assignation FIFA des 3èmes
+    n'étant connue qu'une fois la combinaison de qualifiés fixée.
     """
+    groups_complete = all(df["j"].eq(3).all() for df in standings_map.values() if "j" in df.columns)
+    if groups_complete:
+        return ROUND_OF_32_CONFIRMED
+
     thirds = []  # (team, own_group_letter, prob)
     for g, df in standings_map.items():
         if len(df) >= 3:
