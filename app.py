@@ -339,7 +339,10 @@ with tab_match:
 with tab_groupes:
 
     @st.cache_resource(show_spinner="Simulation Monte Carlo (groupes + tableau complet)…")
-    def get_group_data(_model):
+    def get_group_data(_model, _tournament_module_mtime):
+        # _tournament_module_mtime force le cache à se recalculer dès que tournament.py
+        # change, même si le code de get_group_data lui-même est inchangé (Streamlit ne
+        # détecte pas les changements dans les modules importés).
         groups = build_groups()
         fixtures = load_wc2026_fixtures()
         standings = {g: group_standings(teams, fixtures) for g, teams in groups.items()}
@@ -356,7 +359,9 @@ with tab_groupes:
         }
         return groups, fixtures, qualif, round32_pairs, bracket, standings, matches_played
 
-    groups, fixtures, qualif_df, round32_pairs, bracket, standings_map, matches_played = get_group_data(model)
+    groups, fixtures, qualif_df, round32_pairs, bracket, standings_map, matches_played = get_group_data(
+        model, os.path.getmtime("tournament.py")
+    )
 
     st.markdown("#### 🗂️ Classement des groupes")
     st.caption(

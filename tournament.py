@@ -74,10 +74,34 @@ ROUND32_SLOTS: list[tuple[str, str]] = [
 # (slots "3e" des matchs 74, 77, 79, 80, 81, 82, 85, 87 ci-dessus)
 THIRD_PLACE_SLOT_GROUPS = ["E", "I", "A", "L", "D", "G", "B", "K"]
 
-# 16èmes (indices dans la liste des 16 vainqueurs des 32èmes, ordre matchs 73-88)
+# ---------------------------------------------------------------------------
+# Enchaînement réel des tours (confirmé) — indices dans la liste des 16
+# vainqueurs des 32èmes (ordre des matchs 73-88 ci-dessus = ROUND_OF_32_CONFIRMED) :
+#   0=Afrique du Sud/Canada   1=Allemagne/Paraguay   2=Pays-Bas/Maroc
+#   3=Brésil/Japon            4=France/Suède         5=Côte d'Ivoire/Norvège
+#   6=Mexique/Équateur        7=Angleterre/RD Congo  8=USA/Bosnie
+#   9=Belgique/Sénégal        10=Portugal/Croatie    11=Espagne/Autriche
+#   12=Suisse/Algérie         13=Argentine/Cap-Vert  14=Colombie/Ghana
+#   15=Australie/Égypte
+#
+# 16èmes :
+#   Vainqueur(0) vs Vainqueur(2)   — Afrique du Sud/Canada  vs Pays-Bas/Maroc
+#   Vainqueur(1) vs Vainqueur(4)   — Allemagne/Paraguay     vs France/Suède
+#   Vainqueur(3) vs Vainqueur(5)   — Brésil/Japon           vs Côte d'Ivoire/Norvège
+#   Vainqueur(6) vs Vainqueur(7)   — Mexique/Équateur       vs Angleterre/RD Congo
+#   Vainqueur(10) vs Vainqueur(11) — Portugal/Croatie       vs Espagne/Autriche
+#   Vainqueur(8) vs Vainqueur(9)   — USA/Bosnie             vs Belgique/Sénégal
+#   Vainqueur(13) vs Vainqueur(15) — Argentine/Cap-Vert     vs Australie/Égypte
+#   Vainqueur(12) vs Vainqueur(14) — Suisse/Algérie         vs Colombie/Ghana
 ROUND16_PAIRS = [(0, 2), (1, 4), (3, 5), (6, 7), (10, 11), (8, 9), (13, 15), (12, 14)]
-# Quarts (indices dans la liste des 8 vainqueurs des 16èmes, ordre ci-dessus)
+
+# Quarts (indices dans la liste des 8 vainqueurs des 16èmes, ordre ci-dessus) :
+#   QF1 = Vainqueur(16ème #0) vs Vainqueur(16ème #1)  — (SA/Canada-PB/Maroc) vs (All./Para.-Fr./Suède)
+#   QF2 = Vainqueur(16ème #4) vs Vainqueur(16ème #5)  — (Por./Cro.-Esp./Aut.) vs (USA/Bos.-Belg./Sén.)
+#   QF3 = Vainqueur(16ème #2) vs Vainqueur(16ème #3)  — (Bré./Jap.-CI/Norv.) vs (Mex./Équ.-Ang./RDC)
+#   QF4 = Vainqueur(16ème #6) vs Vainqueur(16ème #7)  — (Arg./CV-Aus./Égy.) vs (Sui./Alg.-Col./Gha.)
 QUARTERS_PAIRS = [(0, 1), (4, 5), (2, 3), (6, 7)]
+
 # Demies (indices dans la liste des 4 vainqueurs des quarts, ordre ci-dessus)
 SEMIS_PAIRS = [(0, 1), (2, 3)]
 
