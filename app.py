@@ -21,6 +21,7 @@ from backtest import summary_stats, load_xg_reel
 from tournament import (
     build_groups, load_wc2026_fixtures, group_standings,
     qualification_probabilities, predicted_round32, knockout_monte_carlo,
+    ROUND16_PAIRS, QUARTERS_PAIRS, SEMIS_PAIRS,
 )
 
 
@@ -399,8 +400,8 @@ with tab_groupes:
         row = qualif_df[qualif_df["team"] == team]
         return float(row["prob_qualif"].iloc[0]) if not row.empty else 0.0
 
-    def pairs(slot_list):
-        return [(slot_list[2*i], slot_list[2*i+1]) for i in range(len(slot_list) // 2)]
+    def pairs(slot_list, index_pairs):
+        return [(slot_list[i], slot_list[j]) for i, j in index_pairs]
 
     round32_with_prob = [
         ((a, prob_qualif(a)), (b, prob_qualif(b))) for a, b in round32_pairs
@@ -408,10 +409,10 @@ with tab_groupes:
 
     rounds = [
         round32_with_prob,
-        pairs(bracket["round16"]),
-        pairs(bracket["quarts"]),
-        pairs(bracket["demi"]),
-        pairs(bracket["finale"]),
+        pairs(bracket["round16"], ROUND16_PAIRS),
+        pairs(bracket["quarts"], QUARTERS_PAIRS),
+        pairs(bracket["demi"], SEMIS_PAIRS),
+        [(bracket["finale"][0], bracket["finale"][1])],
     ]
 
     st.caption("📱 Sur mobile, fais glisser le tableau horizontalement pour voir tous les tours.")

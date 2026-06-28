@@ -12,7 +12,6 @@ On utilise le modèle Dixon-Coles déjà entraîné pour tirer un score aléatoi
 
 import numpy as np
 import pandas as pd
-import networkx as nx
 from collections import defaultdict, Counter
 
 from model import DixonColesModel
@@ -20,22 +19,67 @@ from data_loader import normalize_team
 
 
 # ---------------------------------------------------------------------------
-# Reconstruction des groupes depuis le calendrier 2026
+# Groupes officiels CdM 2026 (tirage au sort FIFA, lettres A à L)
 # ---------------------------------------------------------------------------
 
+GROUPS_2026: dict[str, list[str]] = {
+    "Groupe A": ["Mexico", "South Africa", "South Korea", "Czech Republic"],
+    "Groupe B": ["Canada", "Switzerland", "Bosnia and Herzegovina", "Qatar"],
+    "Groupe C": ["Brazil", "Morocco", "Haiti", "Scotland"],
+    "Groupe D": ["USA", "Paraguay", "Australia", "Turkey"],
+    "Groupe E": ["Germany", "Ivory Coast", "Ecuador", "Curaçao"],
+    "Groupe F": ["Netherlands", "Japan", "Sweden", "Tunisia"],
+    "Groupe G": ["Belgium", "Egypt", "Iran", "New Zealand"],
+    "Groupe H": ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"],
+    "Groupe I": ["France", "Senegal", "Iraq", "Norway"],
+    "Groupe J": ["Argentina", "Algeria", "Austria", "Jordan"],
+    "Groupe K": ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
+    "Groupe L": ["England", "Croatia", "Ghana", "Panama"],
+}
+
+
 def build_groups(csv_path: str = "results.csv") -> dict[str, list[str]]:
-    df = pd.read_csv(csv_path, parse_dates=["date"])
-    wc26 = df[(df["tournament"] == "FIFA World Cup") & (df["date"].dt.year == 2026)]
+    """Groupes officiels du tirage au sort FIFA (fixes, ne dépendent pas du calendrier)."""
+    return {g: sorted(teams) for g, teams in GROUPS_2026.items()}
 
-    G = nx.Graph()
-    for _, row in wc26.iterrows():
-        G.add_edge(normalize_team(row["home_team"]), normalize_team(row["away_team"]))
 
-    components = sorted(nx.connected_components(G), key=lambda x: sorted(x)[0])
-    return {
-        f"Groupe {i+1}": sorted(group)
-        for i, group in enumerate(components)
-    }
+# ---------------------------------------------------------------------------
+# Structure officielle du tableau à élimination directe (FIFA, format 48 équipes)
+# ---------------------------------------------------------------------------
+# Les 16 affiches des 32èmes, dans l'ordre officiel des matchs 73 à 88.
+# "1er"/"2e" réfère au classement du groupe ; "3e" est rempli par un des 8
+# meilleurs 3èmes (assignation simplifiée par ordre de probabilité de
+# qualification, la table officielle complète FIFA gérant ~495 combinaisons
+# possibles selon quels groupes se qualifient comme 3èmes).
+ROUND32_SLOTS: list[tuple[str, str]] = [
+    ("2e Groupe A", "2e Groupe B"),    # match 73
+    ("1er Groupe E", "3e"),            # match 74
+    ("1er Groupe F", "2e Groupe C"),   # match 75
+    ("1er Groupe C", "2e Groupe F"),   # match 76
+    ("1er Groupe I", "3e"),            # match 77
+    ("2e Groupe E", "2e Groupe I"),    # match 78
+    ("1er Groupe A", "3e"),            # match 79
+    ("1er Groupe L", "3e"),            # match 80
+    ("1er Groupe D", "3e"),            # match 81
+    ("1er Groupe G", "3e"),            # match 82
+    ("2e Groupe K", "2e Groupe L"),    # match 83
+    ("1er Groupe H", "2e Groupe J"),   # match 84
+    ("1er Groupe B", "3e"),            # match 85
+    ("1er Groupe J", "2e Groupe H"),   # match 86
+    ("1er Groupe K", "3e"),            # match 87
+    ("2e Groupe D", "2e Groupe G"),    # match 88
+]
+
+# Groupes (dans l'ordre officiel) auxquels les 8 meilleurs 3èmes sont assignés
+# (slots "3e" des matchs 74, 77, 79, 80, 81, 82, 85, 87 ci-dessus)
+THIRD_PLACE_SLOT_GROUPS = ["E", "I", "A", "L", "D", "G", "B", "K"]
+
+# 16èmes (indices dans la liste des 16 vainqueurs des 32èmes, ordre matchs 73-88)
+ROUND16_PAIRS = [(0, 2), (1, 4), (3, 5), (6, 7), (10, 11), (8, 9), (13, 15), (12, 14)]
+# Quarts (indices dans la liste des 8 vainqueurs des 16èmes, ordre ci-dessus)
+QUARTERS_PAIRS = [(0, 1), (4, 5), (2, 3), (6, 7)]
+# Demies (indices dans la liste des 4 vainqueurs des quarts, ordre ci-dessus)
+SEMIS_PAIRS = [(0, 1), (2, 3)]
 
 
 # ---------------------------------------------------------------------------
@@ -121,84 +165,35 @@ def simulate_group(model: DixonColesModel, teams: list[str],
 def build_bracket_32(qualified_groups: dict[str, pd.DataFrame],
                       best_thirds: list[str]) -> list[tuple[str, str]]:
     """
-    Construit les 16 affiches des 32èmes de finale.
-    Simplification : positions standard CdM (1er groupe A vs 2ème groupe B etc.)
-    On utilise un tirage simplifié mais respectant la contrainte
-    "pas deux équipes du même groupe avant les 1/4" autant que possible.
+    Construit les 16 affiches des 32èmes de finale selon la structure officielle
+    FIFA (ROUND32_SLOTS) : 1er/2e de groupes spécifiques se croisent volontairement
+    entre les deux moitiés du tableau, et 8 des 16 matchs opposent un 1er de groupe
+    à un des 8 meilleurs 3èmes.
+
+    qualified_groups : dict {"Groupe A": DataFrame trié, ...}
+    best_thirds : les 8 équipes 3èmes qualifiées, dans l'ordre des groupes
+                  THIRD_PLACE_SLOT_GROUPS (E, I, A, L, D, G, B, K)
     """
-    firsts  = {g: df.iloc[0]["team"] for g, df in qualified_groups.items()}
-    seconds = {g: df.iloc[1]["team"] for g, df in qualified_groups.items()}
+    def team(label: str) -> str:
+        # label ex: "1er Groupe E" / "2e Groupe C"
+        pos, group = label.split(" ", 1)
+        idx = 0 if pos == "1er" else 1
+        return qualified_groups[group].iloc[idx]["team"]
 
-    group_names = list(qualified_groups.keys())  # Groupe 1..12
+    third_by_group = dict(zip(THIRD_PLACE_SLOT_GROUPS, best_thirds))
     pairs = []
+    third_iter = iter(THIRD_PLACE_SLOT_GROUPS)
+    for a_label, b_label in ROUND32_SLOTS:
+        a = team(a_label)
+        b = third_by_group[next(third_iter)] if b_label == "3e" else team(b_label)
+        pairs.append((a, b))
 
-    # 8 affiches 1er vs 2ème de groupes différents (rotation standard)
-    for i in range(8):
-        g_first  = group_names[i % 12]
-        g_second = group_names[(i + 4) % 12]
-        pairs.append((firsts[g_first], seconds[g_second]))
-
-    # 4 meilleurs 3èmes affrontent les 4 vainqueurs de groupes restants
-    remaining_firsts = [firsts[g] for g in group_names[8:12]]
-    for i in range(4):
-        pairs.append((remaining_firsts[i], best_thirds[i]))
-
-    # 4 affiches restantes : seconds restants (groupes 0-3, pas encore utilisés) vs 4 autres meilleurs 3èmes
-    remaining_seconds = [seconds[g] for g in group_names[0:4]]
-    for i in range(4):
-        pairs.append((remaining_seconds[i], best_thirds[4 + i] if i + 4 < len(best_thirds) else remaining_seconds[i]))
-
-    return pairs[:16]
+    return pairs
 
 
 def simulate_knockout_round(model: DixonColesModel, matchups: list[tuple[str, str]],
                              rng: np.random.Generator) -> list[str]:
     return [draw_knockout_winner(model, a, b, rng) for a, b in matchups]
-
-
-def pair_up(teams: list[str]) -> list[tuple[str, str]]:
-    return [(teams[i], teams[i+1]) for i in range(0, len(teams), 2)]
-
-
-# ---------------------------------------------------------------------------
-# Simulation complète d'un tournoi
-# ---------------------------------------------------------------------------
-
-def simulate_tournament(model: DixonColesModel, groups: dict[str, list[str]],
-                         rng: np.random.Generator) -> dict:
-    """Retourne {'winner': ..., 'finalist': ..., 'semifinalists': [...], 'quarterfinalists':[...]}"""
-    group_results = {g: simulate_group(model, teams, rng) for g, teams in groups.items()}
-
-    thirds = []
-    for g, df in group_results.items():
-        row = df.iloc[2].to_dict()
-        row["group"] = g
-        thirds.append(row)
-    thirds_df = pd.DataFrame(thirds).sort_values(["pts", "gd", "gf"], ascending=False)
-    best_8_thirds = thirds_df.head(8)["team"].tolist()
-
-    round32 = build_bracket_32(group_results, best_8_thirds)
-    round16_teams = simulate_knockout_round(model, round32, rng)
-
-    round16 = pair_up(round16_teams)
-    quarter_teams = simulate_knockout_round(model, round16, rng)
-
-    quarters = pair_up(quarter_teams)
-    semi_teams = simulate_knockout_round(model, quarters, rng)
-
-    semis = pair_up(semi_teams)
-    final_teams = simulate_knockout_round(model, semis, rng)
-
-    final = pair_up(final_teams)
-    winner = simulate_knockout_round(model, final, rng)[0]
-
-    return {
-        "winner": winner,
-        "finalists": final_teams,
-        "semifinalists": semi_teams,
-        "quarterfinalists": quarter_teams,
-        "round16": round16_teams,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -334,18 +329,28 @@ def predicted_round32(standings_map: dict[str, pd.DataFrame], qualif_df: pd.Data
     """
     Tableau des 32èmes déterministe à partir de l'état actuel : 1er/2e réel de
     chaque groupe (même si pas terminé) + les 8 meilleurs 3èmes selon leur proba
-    de qualification. Comme chaque équipe n'appartient qu'à UN groupe, ce tableau
-    ne peut structurellement pas contenir de doublon.
+    de qualification, assignés aux 8 emplacements officiels (THIRD_PLACE_SLOT_GROUPS)
+    en évitant qu'une équipe affronte le 1er de SON PROPRE groupe. Comme chaque
+    équipe n'appartient qu'à UN groupe, ce tableau ne peut structurellement pas
+    contenir de doublon.
     """
-    thirds = []
+    thirds = []  # (team, own_group_letter, prob)
     for g, df in standings_map.items():
         if len(df) >= 3:
             team = df.iloc[2]["team"]
             row = qualif_df[(qualif_df["group"] == g) & (qualif_df["team"] == team)]
             prob = float(row["prob_qualif"].iloc[0]) if not row.empty else 0.0
-            thirds.append((team, prob))
-    thirds.sort(key=lambda x: x[1], reverse=True)
-    best_8 = [t for t, _ in thirds[:8]]
+            own_letter = g.split(" ")[-1]  # "Groupe E" -> "E"
+            thirds.append((team, own_letter, prob))
+    thirds.sort(key=lambda x: x[2], reverse=True)
+    pool = thirds[:8]
+
+    # Assignation greedy aux 8 slots, en évitant qu'un 3e affronte le 1er de son propre groupe
+    best_8 = []
+    for slot_group in THIRD_PLACE_SLOT_GROUPS:
+        idx = next((i for i, (_, own, _) in enumerate(pool) if own != slot_group), 0)
+        team, _, _ = pool.pop(idx)
+        best_8.append(team)
 
     return build_bracket_32(standings_map, best_8)
 
@@ -374,19 +379,22 @@ def knockout_monte_carlo(model: DixonColesModel, round32_pairs: list[tuple[str, 
         for i, t in enumerate(round32_winners):
             slot_counts["round16"][i][t] += 1
 
-        round16_winners = simulate_knockout_round(model, pair_up(round32_winners), rng)
+        round16_matchups = [(round32_winners[i], round32_winners[j]) for i, j in ROUND16_PAIRS]
+        round16_winners = simulate_knockout_round(model, round16_matchups, rng)
         for i, t in enumerate(round16_winners):
             slot_counts["quarts"][i][t] += 1
 
-        quarts_winners = simulate_knockout_round(model, pair_up(round16_winners), rng)
+        quarts_matchups = [(round16_winners[i], round16_winners[j]) for i, j in QUARTERS_PAIRS]
+        quarts_winners = simulate_knockout_round(model, quarts_matchups, rng)
         for i, t in enumerate(quarts_winners):
             slot_counts["demi"][i][t] += 1
 
-        demi_winners = simulate_knockout_round(model, pair_up(quarts_winners), rng)
+        demi_matchups = [(quarts_winners[i], quarts_winners[j]) for i, j in SEMIS_PAIRS]
+        demi_winners = simulate_knockout_round(model, demi_matchups, rng)
         for i, t in enumerate(demi_winners):
             slot_counts["finale"][i][t] += 1
 
-        champion = simulate_knockout_round(model, pair_up(demi_winners), rng)[0]
+        champion = simulate_knockout_round(model, [(demi_winners[0], demi_winners[1])], rng)[0]
         slot_counts["champion"][champion] += 1
 
     def top(counter: Counter) -> tuple[str, float]:
@@ -396,43 +404,3 @@ def knockout_monte_carlo(model: DixonColesModel, round32_pairs: list[tuple[str, 
     bracket = {k: [top(c) for c in slot_counts[k]] for k in ("round16", "quarts", "demi", "finale")}
     bracket["champion"] = top(slot_counts["champion"])
     return bracket
-
-
-def run_monte_carlo(model: DixonColesModel, groups: dict[str, list[str]],
-                     n_sims: int = 10_000, seed: int = 42) -> pd.DataFrame:
-    _MATRIX_CACHE.clear()
-    rng = np.random.default_rng(seed)
-
-    counters = {
-        "winner": defaultdict(int),
-        "finalist": defaultdict(int),
-        "semifinalist": defaultdict(int),
-        "quarterfinalist": defaultdict(int),
-        "round16": defaultdict(int),
-    }
-
-    for _ in range(n_sims):
-        result = simulate_tournament(model, groups, rng)
-        counters["winner"][result["winner"]] += 1
-        for t in result["finalists"]:
-            counters["finalist"][t] += 1
-        for t in result["semifinalists"]:
-            counters["semifinalist"][t] += 1
-        for t in result["quarterfinalists"]:
-            counters["quarterfinalist"][t] += 1
-        for t in result["round16"]:
-            counters["round16"][t] += 1
-
-    all_teams = sorted({t for g in groups.values() for t in g})
-    rows = []
-    for t in all_teams:
-        rows.append({
-            "team": t,
-            "prob_winner": counters["winner"][t] / n_sims,
-            "prob_finalist": counters["finalist"][t] / n_sims,
-            "prob_semifinalist": counters["semifinalist"][t] / n_sims,
-            "prob_quarterfinalist": counters["quarterfinalist"][t] / n_sims,
-            "prob_round16": counters["round16"][t] / n_sims,
-        })
-
-    return pd.DataFrame(rows).sort_values("prob_winner", ascending=False).reset_index(drop=True)
